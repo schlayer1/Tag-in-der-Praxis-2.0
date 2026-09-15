@@ -83,7 +83,7 @@ export const UserBar: React.FC<UserBarProps> = ({
             className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-800 font-medium px-2 py-1 transition"
           >
             <GraduationCap className="w-3.5 h-3.5" />
-            <span>Lehrkraft-Zugang</span>
+            <span>Lehrer-Zugang</span>
           </button>
         </div>
       )}

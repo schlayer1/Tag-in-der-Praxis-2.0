@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { generateStudentCode } from '../services/reportService';
 import { User, KeyRound, GraduationCap, X, Loader2, AlertCircle, Sparkles, ArrowRight } from 'lucide-react';
@@ -9,6 +9,7 @@ interface LoginModalProps {
   onClose: () => void;
   defaultTab?: 'student' | 'teacher';
   onStudentLoggedIn?: (code: string, name?: string) => void;
+  onTeacherLoggedIn?: () => void;
 }
 
 export const LoginModal: React.FC<LoginModalProps> = ({
@@ -16,9 +17,18 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   onClose,
   defaultTab = 'student',
   onStudentLoggedIn,
+  onTeacherLoggedIn,
 }) => {
   const { loginAsStudent, registerAndLoginStudent, loginAsTeacher } = useAuth();
   const [tab, setTab] = useState<'student' | 'teacher'>(defaultTab);
+
+  useEffect(() => {
+    if (isOpen) {
+      setTab(defaultTab);
+      setError(null);
+      setTeacherPassword('');
+    }
+  }, [isOpen, defaultTab]);
 
   // Student Mode: 'login' (mit Kürzel) vs. 'create' (aus Name generieren)
   const [studentMode, setStudentMode] = useState<'create' | 'login'>('create');
@@ -80,6 +90,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     try {
       await loginAsTeacher(teacherPassword);
       onClose();
+      if (onTeacherLoggedIn) {
+        onTeacherLoggedIn();
+      }
     } catch (err: any) {
       setError(err.message || 'Anmeldung fehlgeschlagen.');
     } finally {
@@ -304,7 +317,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
               <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl text-amber-900 text-xs">
                 <span className="font-bold block mb-0.5">Lehrkraft-Bereich:</span>
-                Zugang zur Gesamtauswertung aller Klassen, Turnusse und KI-gestützten Rückmeldungen.
+                Zugang zur Gesamtauswertung aller Klassen und Turnusse.
               </div>
 
               <button

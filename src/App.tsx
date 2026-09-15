@@ -319,6 +319,9 @@ export function App() {
             setReport((prev) => ({ ...prev, studentCode: code }));
           }
         }}
+        onTeacherLoggedIn={() => {
+          setIsTeacherDashboardOpen(true);
+        }}
       />
 
       <StudentReportsModal
