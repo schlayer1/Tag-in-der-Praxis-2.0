@@ -42,6 +42,8 @@ export interface PraxisReport {
   createdAt?: string;
   updatedAt?: string;
   status: 'draft' | 'submitted' | 'reviewed';
+  isArchived?: boolean;
+  archivedAt?: string;
 
   // Schritt 1: Stammdaten
   studentName: string;

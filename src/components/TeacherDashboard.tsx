@@ -10,6 +10,8 @@ import {
   calculateSchoolYear,
   normalizeSchoolYear,
   updateStudentClass,
+  deleteReportDoc,
+  archiveReportDoc,
   AVAILABLE_CLASSES,
   SCHOOL_YEARS
 } from '../services/reportService';
@@ -47,6 +49,7 @@ import {
   Upload,
   Trash2,
   Archive,
+  ArchiveRestore,
   Award,
   CheckSquare,
   Square
@@ -110,7 +113,59 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
   const [stageFilter, setStageFilter] = useState<string>('Alle');
   const [yearFilter, setYearFilter] = useState<string>(calculateSchoolYear());
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'reviewed'>('all');
+  const [archiveFilter, setArchiveFilter] = useState<'active' | 'archived' | 'all'>('active');
   const [groupMode, setGroupMode] = useState<GroupMode>('class');
+
+  // Delete modal state
+  const [reportToDelete, setReportToDelete] = useState<PraxisReport | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+
+  // Status feedback notification (toast)
+  const [notification, setNotification] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  const showNotification = (text: string, type: 'success' | 'error' = 'success') => {
+    setNotification({ text, type });
+    setTimeout(() => setNotification(null), 4000);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!reportToDelete?.id) return;
+    setIsDeleting(true);
+    try {
+      await deleteReportDoc(reportToDelete.id);
+      setReports((prev) => prev.filter((r) => r.id !== reportToDelete.id));
+      showNotification(`Bericht von ${reportToDelete.studentName} wurde erfolgreich gelöscht.`);
+      setReportToDelete(null);
+    } catch (err: any) {
+      console.error('Delete report error:', err);
+      showNotification('Fehler beim Löschen des Berichts.', 'error');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleToggleArchive = async (rep: PraxisReport) => {
+    if (!rep.id) return;
+    const newArchivedState = !rep.isArchived;
+    try {
+      await archiveReportDoc(rep.id, newArchivedState);
+      setReports((prev) =>
+        prev.map((r) =>
+          r.id === rep.id
+            ? { ...r, isArchived: newArchivedState, archivedAt: newArchivedState ? new Date().toISOString() : undefined }
+            : r
+        )
+      );
+      showNotification(
+        newArchivedState
+          ? `Bericht von ${rep.studentName} wurde ins Archiv verschoben.`
+          : `Bericht von ${rep.studentName} wurde aus dem Archiv wiederhergestellt.`
+      );
+    } catch (err: any) {
+      console.error('Archive report error:', err);
+      showNotification('Fehler beim Aktualisieren des Archiv-Status.', 'error');
+    }
+  };
 
   // Collapsed state for accordion groups
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
@@ -207,7 +262,13 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
       (statusFilter === 'reviewed' && hasFeedback) ||
       (statusFilter === 'pending' && !hasFeedback);
 
-    return matchesSearch && matchesYear && matchesClass && matchesStage && matchesStatus;
+    const isArchived = !!rep.isArchived;
+    const matchesArchive =
+      archiveFilter === 'all' ||
+      (archiveFilter === 'archived' && isArchived) ||
+      (archiveFilter === 'active' && !isArchived);
+
+    return matchesSearch && matchesYear && matchesClass && matchesStage && matchesStatus && matchesArchive;
   });
 
   // Grouped records
@@ -460,8 +521,10 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
     }
   };
 
-  const pendingCount = reports.filter((r) => !r.teacherFeedback?.comment).length;
-  const reviewedCount = reports.filter((r) => !!r.teacherFeedback?.comment).length;
+  const activeReports = reports.filter((r) => !r.isArchived);
+  const archivedReportsCount = reports.filter((r) => !!r.isArchived).length;
+  const pendingCount = activeReports.filter((r) => !r.teacherFeedback?.comment).length;
+  const reviewedCount = activeReports.filter((r) => !!r.teacherFeedback?.comment).length;
 
   return (
     <div className="fixed inset-0 z-[60] bg-slate-100 flex flex-col overflow-hidden">
@@ -625,6 +688,50 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
                     </option>
                   ))}
                 </select>
+              </div>
+
+              {/* Archive Toggle Filter */}
+              <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setArchiveFilter('active')}
+                  className={`px-2.5 py-1 rounded text-xs font-bold flex items-center gap-1.5 transition ${
+                    archiveFilter === 'active' ? 'bg-white text-school-blue shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="Aktuelle aktive Berichte anzeigen"
+                >
+                  <FolderTree className="w-3.5 h-3.5" />
+                  <span>Aktuell</span>
+                  <span className="text-[10px] font-mono px-1 py-0.2 rounded bg-slate-200/70 text-slate-700">
+                    {activeReports.length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setArchiveFilter('archived')}
+                  className={`px-2.5 py-1 rounded text-xs font-bold flex items-center gap-1.5 transition ${
+                    archiveFilter === 'archived' ? 'bg-white text-amber-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="Archivierte Berichte anzeigen"
+                >
+                  <Archive className="w-3.5 h-3.5" />
+                  <span>Archiv</span>
+                  <span className={`text-[10px] font-mono px-1 py-0.2 rounded ${archivedReportsCount > 0 ? 'bg-amber-100 text-amber-800' : 'bg-slate-200/70 text-slate-700'}`}>
+                    {archivedReportsCount}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setArchiveFilter('all')}
+                  className={`px-2.5 py-1 rounded text-xs font-bold flex items-center gap-1 transition ${
+                    archiveFilter === 'all' ? 'bg-white text-school-blue shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="Alle Berichte inkl. Archiv anzeigen"
+                >
+                  <span>Alle</span>
+                </button>
               </div>
 
               {/* View Group Mode Switcher */}
@@ -1602,6 +1709,91 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
         </div>
       )}
 
+      {/* Delete Confirmation Modal */}
+      {reportToDelete && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-slate-200 animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5 text-rose-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Bericht endgültig löschen?</h3>
+                <p className="text-xs text-slate-500">Diese Aktion kann nicht rückgängig gemacht werden.</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-200 space-y-1.5 text-xs text-slate-700">
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-medium">Schüler:</span>
+                <span className="font-bold text-slate-900">{reportToDelete.studentName || 'Unbenannt'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-medium">Klasse & Turnus:</span>
+                <span className="font-semibold text-slate-800">Klasse {reportToDelete.studentClass || '—'} ({reportToDelete.stage || '—'})</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-medium">Betrieb:</span>
+                <span className="font-semibold text-slate-800 truncate max-w-[200px]">{reportToDelete.companyName || '—'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-medium">Datum:</span>
+                <span className="font-mono text-slate-800">{reportToDelete.reportDate || '—'}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setReportToDelete(null)}
+                disabled={isDeleting}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition disabled:opacity-50"
+              >
+                Abbrechen
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs transition disabled:opacity-50"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Wird gelöscht...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Endgültig löschen</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Notification Toast */}
+      {notification && (
+        <div className="fixed bottom-6 right-6 z-[110] animate-in fade-in slide-in-from-bottom duration-200">
+          <div
+            className={`px-4 py-3 rounded-xl shadow-lg border text-xs font-bold flex items-center gap-2 ${
+              notification.type === 'error'
+                ? 'bg-rose-50 text-rose-800 border-rose-200'
+                : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+            }`}
+          >
+            {notification.type === 'error' ? (
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            ) : (
+              <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+            )}
+            <span>{notification.text}</span>
+          </div>
+        </div>
+      )}
+
       {/* Offscreen printable portfolio template for html2pdf */}
       {portfolioResult && (
         <div
@@ -1701,22 +1893,30 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
               </div>
             </div>
 
-            <span
-              className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full flex-shrink-0 border inline-flex items-center gap-1 ${
-                hasFeedback
-                  ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20 shadow-xs'
-                  : 'bg-amber-500/10 text-amber-700 border-amber-500/20 shadow-xs'
-              }`}
-            >
-              {hasFeedback ? (
-                <>
-                  <Check className="w-3 h-3 text-emerald-600 stroke-[2.5]" />
-                  <span>Feedback</span>
-                </>
-              ) : (
-                'Offen'
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              {rep.isArchived && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-amber-100 text-amber-800 border-amber-300 shadow-xs inline-flex items-center gap-1">
+                  <Archive className="w-3 h-3 text-amber-700" />
+                  <span>Archiv</span>
+                </span>
               )}
-            </span>
+              <span
+                className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border inline-flex items-center gap-1 ${
+                  hasFeedback
+                    ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20 shadow-xs'
+                    : 'bg-amber-500/10 text-amber-700 border-amber-500/20 shadow-xs'
+                }`}
+              >
+                {hasFeedback ? (
+                  <>
+                    <Check className="w-3 h-3 text-emerald-600 stroke-[2.5]" />
+                    <span>Feedback</span>
+                  </>
+                ) : (
+                  'Offen'
+                )}
+              </span>
+            </div>
           </div>
 
           <div className="text-xs text-slate-600 space-y-1 pt-1">
@@ -1778,6 +1978,34 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
               </button>
             );
           })()}
+
+          {/* Archive / Restore Button */}
+          <button
+            type="button"
+            onClick={() => handleToggleArchive(rep)}
+            title={rep.isArchived ? 'Aus Archiv wiederherstellen' : 'Ins Archiv verschieben'}
+            className={`inline-flex items-center justify-center p-2 rounded-lg border transition-all duration-150 active:scale-[0.98] ${
+              rep.isArchived
+                ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300'
+                : 'bg-slate-50 hover:bg-slate-200/80 text-slate-600 border-slate-200 hover:text-slate-900'
+            }`}
+          >
+            {rep.isArchived ? (
+              <ArchiveRestore className="w-4 h-4 text-amber-700" />
+            ) : (
+              <Archive className="w-4 h-4" />
+            )}
+          </button>
+
+          {/* Delete Button */}
+          <button
+            type="button"
+            onClick={() => setReportToDelete(rep)}
+            title="Bericht endgültig löschen"
+            className="inline-flex items-center justify-center p-2 rounded-lg bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 hover:border-rose-200 transition-all duration-150 active:scale-[0.98]"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
         </div>
       </div>
     );

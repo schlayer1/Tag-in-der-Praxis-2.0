@@ -401,6 +401,8 @@ export async function saveReportToFirestore(
     careerRating: report.careerRating,
     specialMemory: report.specialMemory,
     status: report.status || 'submitted',
+    isArchived: report.isArchived || false,
+    ...(report.archivedAt ? { archivedAt: report.archivedAt } : {}),
     updatedAt: nowISO,
   };
 
@@ -514,10 +516,21 @@ export async function saveAiFeedback(
 
 // 6. Einzelnen Bericht löschen
 export async function deleteReportDoc(reportId: string): Promise<void> {
+  if (reportId.startsWith('test_')) return;
   await deleteDoc(doc(db, REPORTS_COLLECTION, reportId));
 }
 
-// 7. JSON-Export für das Schuljahr-Backup (Herunterladen als Datei)
+// 7. Einzelnen Bericht archivieren / aus dem Archiv wiederherstellen
+export async function archiveReportDoc(reportId: string, isArchived: boolean = true): Promise<void> {
+  if (reportId.startsWith('test_')) return;
+  const reportDoc = doc(db, REPORTS_COLLECTION, reportId);
+  await updateDoc(reportDoc, {
+    isArchived,
+    archivedAt: isArchived ? new Date().toISOString() : null,
+  });
+}
+
+// 8. JSON-Export für das Schuljahr-Backup (Herunterladen als Datei)
 export function exportReportsToJsonFile(reports: PraxisReport[], schoolYearLabel?: string): void {
   const cleanYear = (schoolYearLabel || calculateSchoolYear()).replace('/', '_');
   const filename = `Praktikumsberichte_Backup_${cleanYear}_${new Date().toISOString().split('T')[0]}.json`;
