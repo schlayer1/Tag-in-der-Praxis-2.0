@@ -69,6 +69,16 @@ export function App() {
   const [studentPastReports, setStudentPastReports] = useState<PraxisReport[]>([]);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
 
+  // Automatically open TeacherDashboard when logged in as teacher, and close if logged out
+  useEffect(() => {
+    if (role === 'teacher') {
+      setIsTeacherDashboardOpen(true);
+      setIsLoginModalOpen(false);
+    } else {
+      setIsTeacherDashboardOpen(false);
+    }
+  }, [role]);
+
   // Load student reports when logged in as student
   useEffect(() => {
     if (role === 'student' && studentCode) {

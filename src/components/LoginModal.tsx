@@ -89,10 +89,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
     try {
       await loginAsTeacher(teacherPassword);
-      onClose();
       if (onTeacherLoggedIn) {
         onTeacherLoggedIn();
       }
+      onClose();
     } catch (err: any) {
       setError(err.message || 'Anmeldung fehlgeschlagen.');
     } finally {

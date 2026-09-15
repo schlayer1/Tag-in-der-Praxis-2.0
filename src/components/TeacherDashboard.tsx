@@ -464,7 +464,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
   const reviewedCount = reports.filter((r) => !!r.teacherFeedback?.comment).length;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-100 flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-[60] bg-slate-100 flex flex-col overflow-hidden">
       {/* Top Navigation Bar */}
       <header className="bg-school-darkblue text-white p-4 sm:px-8 flex items-center justify-between shadow-md flex-shrink-0">
         <div className="flex items-center gap-3">
