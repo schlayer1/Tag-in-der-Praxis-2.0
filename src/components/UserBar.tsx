@@ -25,23 +25,23 @@ export const UserBar: React.FC<UserBarProps> = ({
       {isLoggedIn ? (
         <div className="flex items-center gap-2 flex-wrap">
           {role === 'teacher' ? (
-            <span className="inline-flex items-center gap-1.5 bg-indigo-100 text-indigo-900 font-bold px-3 py-1 rounded-full border border-indigo-200 shadow-sm">
+            <span className="inline-flex items-center gap-1.5 bg-indigo-500/10 text-indigo-900 font-bold px-3 py-1 rounded-full border border-indigo-500/20 shadow-xs">
               <GraduationCap className="w-4 h-4 text-indigo-700" />
               <span>Lehrkraft (TIP Kahla)</span>
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1.5 bg-blue-100 text-school-darkblue font-bold px-3 py-1 rounded-full border border-blue-200 shadow-sm">
+            <span className="inline-flex items-center gap-1.5 bg-blue-500/10 text-school-darkblue font-bold px-3 py-1 rounded-full border border-blue-500/20 shadow-xs">
               <User className="w-4 h-4 text-school-blue" />
-              <span>Kürzel: {studentCode} {studentName ? `(${studentName})` : ''}</span>
+              <span>Kürzel: <span className="font-mono tabular-nums font-black">{studentCode}</span> {studentName ? `(${studentName})` : ''}</span>
             </span>
           )}
 
           {role === 'student' && (
             <button
               onClick={onOpenHistory}
-              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border shadow-sm transition font-semibold ${
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border shadow-xs transition-all duration-150 active:scale-[0.98] font-semibold ${
                 hasFeedback
-                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300 ring-2 ring-emerald-400/50 animate-pulse'
+                  ? 'bg-emerald-500/15 text-emerald-800 border-emerald-500/30 ring-2 ring-emerald-400/40 animate-pulse'
                   : 'bg-white text-slate-700 hover:text-school-blue border-slate-300 hover:border-school-blue'
               }`}
             >
@@ -53,7 +53,7 @@ export const UserBar: React.FC<UserBarProps> = ({
               ) : (
                 <>
                   <BookOpen className="w-3.5 h-3.5 text-school-cyan" />
-                  <span>Meine Berichte ({reportCount})</span>
+                  <span>Meine Berichte <span className="font-mono tabular-nums">({reportCount})</span></span>
                 </>
               )}
             </button>
@@ -62,7 +62,7 @@ export const UserBar: React.FC<UserBarProps> = ({
           {role === 'teacher' && (
             <button
               onClick={onOpenDashboard}
-              className="inline-flex items-center gap-1.5 bg-school-blue text-white font-bold px-3 py-1 rounded-full shadow-sm hover:bg-school-darkblue transition"
+              className="inline-flex items-center gap-1.5 bg-school-blue hover:bg-school-darkblue text-white font-bold px-3.5 py-1 rounded-full shadow-sm transition-all duration-150 active:scale-[0.98]"
             >
               <span>Zum Dashboard</span>
             </button>
@@ -72,7 +72,7 @@ export const UserBar: React.FC<UserBarProps> = ({
         <div className="flex items-center gap-2">
           <button
             onClick={() => onOpenLogin('student')}
-            className="inline-flex items-center gap-1.5 bg-white text-slate-700 hover:text-school-blue font-semibold px-3 py-1 rounded-full border border-slate-300 shadow-sm hover:border-school-blue transition"
+            className="inline-flex items-center gap-1.5 bg-white text-slate-700 hover:text-school-blue font-semibold px-3 py-1 rounded-full border border-slate-300 shadow-xs hover:border-school-blue transition-all duration-150 active:scale-[0.98]"
           >
             <LogIn className="w-3.5 h-3.5 text-school-blue" />
             <span>Schüler-Login / Kürzel</span>
@@ -80,7 +80,7 @@ export const UserBar: React.FC<UserBarProps> = ({
 
           <button
             onClick={() => onOpenLogin('teacher')}
-            className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-800 font-medium px-2 py-1 transition"
+            className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-800 font-medium px-2 py-1 transition-all duration-150 active:scale-[0.98]"
           >
             <GraduationCap className="w-3.5 h-3.5" />
             <span>Lehrer-Zugang</span>
@@ -92,7 +92,7 @@ export const UserBar: React.FC<UserBarProps> = ({
         <button
           onClick={logout}
           title="Abmelden"
-          className="inline-flex items-center gap-1 text-slate-500 hover:text-red-600 font-medium px-2 py-1 transition"
+          className="inline-flex items-center gap-1 text-slate-400 hover:text-red-600 font-medium px-2 py-1 transition-all duration-150 active:scale-[0.98]"
         >
           <LogOut className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Abmelden</span>

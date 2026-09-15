@@ -61,7 +61,7 @@ export const StepBasicInfo: React.FC<StepBasicInfoProps> = ({
               id="student_firstname"
               value={firstName}
               onChange={(e) => updateNames(e.target.value, lastName)}
-              className="w-full bg-white border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition"
+              className="w-full bg-white border border-slate-300 rounded-lg px-3.5 py-2.5 text-base sm:text-sm min-h-[44px] focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition"
               placeholder="z. B. Lukas"
               required
             />
@@ -78,7 +78,7 @@ export const StepBasicInfo: React.FC<StepBasicInfoProps> = ({
               id="student_lastname"
               value={lastName}
               onChange={(e) => updateNames(firstName, e.target.value)}
-              className="w-full bg-white border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition"
+              className="w-full bg-white border border-slate-300 rounded-lg px-3.5 py-2.5 text-base sm:text-sm min-h-[44px] focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition"
               placeholder="z. B. Müller"
               required
             />
@@ -97,7 +97,7 @@ export const StepBasicInfo: React.FC<StepBasicInfoProps> = ({
                 value={loginCode}
                 readOnly
                 placeholder="Wird generiert..."
-                className="w-full bg-blue-50/70 border border-blue-200 text-school-darkblue font-mono font-black tracking-wider rounded-lg px-3.5 py-2.5 text-sm cursor-default focus:outline-none"
+                className="w-full bg-blue-50/70 border border-blue-200 text-school-darkblue font-mono tabular-nums font-black tracking-wider rounded-lg px-3.5 py-2.5 text-base sm:text-sm min-h-[44px] cursor-default focus:outline-none"
               />
             </div>
           </div>
@@ -112,7 +112,7 @@ export const StepBasicInfo: React.FC<StepBasicInfoProps> = ({
               id="student_class"
               value={report.studentClass}
               onChange={(e) => onChange('studentClass', e.target.value)}
-              className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition"
+              className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2.5 text-base sm:text-sm min-h-[44px] font-medium text-slate-700 focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition"
             >
               {COMMON_CLASSES.map((cls) => (
                 <option key={cls} value={cls}>
@@ -133,7 +133,7 @@ export const StepBasicInfo: React.FC<StepBasicInfoProps> = ({
               id="company_name"
               value={report.companyName}
               onChange={(e) => onChange('companyName', e.target.value)}
-              className="w-full bg-white border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition"
+              className="w-full bg-white border border-slate-300 rounded-lg px-3.5 py-2.5 text-base sm:text-sm min-h-[44px] focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition"
               placeholder="Name des Unternehmens"
               required
             />
@@ -149,7 +149,7 @@ export const StepBasicInfo: React.FC<StepBasicInfoProps> = ({
               id="stage_select"
               value={report.stage}
               onChange={(e) => onChange('stage', e.target.value)}
-              className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition"
+              className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2.5 text-base sm:text-sm min-h-[44px] font-medium text-slate-700 focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition"
             >
               <option value="Turnus 1">Turnus 1</option>
               <option value="Turnus 2">Turnus 2</option>
@@ -169,39 +169,42 @@ export const StepBasicInfo: React.FC<StepBasicInfoProps> = ({
               id="report_date"
               value={report.reportDate}
               onChange={(e) => onChange('reportDate', e.target.value)}
-              className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition"
+              className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-base sm:text-sm min-h-[44px] font-mono tabular-nums focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition"
               required
             />
           </div>
 
-          {/* Arbeitsbeginn */}
-          <div className="sm:col-span-1">
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-school-cyan" />
-              Arbeitsbeginn
-            </label>
-            <input
-              type="time"
-              id="start_time"
-              value={report.startTime}
-              onChange={(e) => onChange('startTime', e.target.value)}
-              className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition"
-            />
-          </div>
+          {/* Arbeitszeiten sauber im 2-Spalten-Raster für Mobile & Desktop */}
+          <div className="sm:col-span-2 grid grid-cols-2 gap-3">
+            {/* Arbeitsbeginn */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-school-cyan" />
+                Arbeitsbeginn
+              </label>
+              <input
+                type="time"
+                id="start_time"
+                value={report.startTime}
+                onChange={(e) => onChange('startTime', e.target.value)}
+                className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-base sm:text-sm min-h-[44px] font-mono tabular-nums focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition"
+              />
+            </div>
 
-          {/* Arbeitsende */}
-          <div className="sm:col-span-1">
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-school-cyan" />
-              Arbeitsende
-            </label>
-            <input
-              type="time"
-              id="end_time"
-              value={report.endTime}
-              onChange={(e) => onChange('endTime', e.target.value)}
-              className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition"
-            />
+            {/* Arbeitsende */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-school-cyan" />
+                Arbeitsende
+              </label>
+              <input
+                type="time"
+                id="end_time"
+                value={report.endTime}
+                onChange={(e) => onChange('endTime', e.target.value)}
+                className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-base sm:text-sm min-h-[44px] font-mono tabular-nums focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -211,7 +214,7 @@ export const StepBasicInfo: React.FC<StepBasicInfoProps> = ({
         <button
           type="button"
           onClick={onNext}
-          className="inline-flex items-center gap-2 bg-gradient-to-r from-school-blue to-school-cyan hover:from-school-darkblue hover:to-school-blue text-white font-bold py-3 px-6 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 transform hover:-translate-y-0.5"
+          className="inline-flex items-center gap-2 bg-gradient-to-r from-school-blue to-school-cyan hover:from-school-darkblue hover:to-school-blue text-white font-bold py-3 px-6 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 transform hover:-translate-y-0.5 active:scale-[0.98]"
         >
           <span>Weiter zum Tagesablauf</span>
           <ArrowRight className="w-4 h-4" />

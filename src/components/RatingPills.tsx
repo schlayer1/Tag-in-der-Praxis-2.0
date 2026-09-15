@@ -28,7 +28,7 @@ export const RatingPills: React.FC<RatingPillsProps> = ({
         return (
           <label
             key={opt.value}
-            className={`relative flex items-center justify-center px-2.5 py-2 rounded-xl border text-center cursor-pointer select-none transition-all duration-200 ${
+            className={`relative flex items-center justify-center px-2.5 py-2 min-h-[42px] rounded-xl border text-center cursor-pointer select-none transition-all duration-200 active:scale-[0.98] ${
               isSelected
                 ? 'bg-school-blue text-white font-bold border-school-blue shadow-md scale-[1.02]'
                 : 'bg-white text-slate-700 border-slate-300 hover:border-school-blue/50 hover:bg-blue-50/50'

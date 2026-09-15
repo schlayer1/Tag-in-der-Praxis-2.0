@@ -510,77 +510,77 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
       {/* Main Content Area */}
       <main className="flex-1 p-4 sm:p-8 overflow-y-auto max-w-7xl mx-auto w-full space-y-5">
         {/* KPI / Stats Ribbon */}
-        <div className="grid grid-cols-3 gap-3">
-          <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
             <div>
-              <span className="text-xs text-slate-500 font-medium block">Gesamt eingereicht</span>
-              <span className="text-lg sm:text-2xl font-black text-slate-900">{reports.length}</span>
+              <span className="text-xs text-slate-400 font-medium block">Gesamt eingereicht</span>
+              <span className="text-xl sm:text-2xl font-black font-mono tabular-nums text-slate-900">{reports.length}</span>
             </div>
-            <div className="w-9 h-9 rounded-full bg-blue-50 text-school-blue flex items-center justify-center font-bold text-xs">
+            <div className="w-10 h-10 rounded-full bg-blue-50 text-school-blue flex items-center justify-center font-bold text-xs">
               <FolderTree className="w-4 h-4" />
             </div>
           </div>
 
           <div
             onClick={() => setStatusFilter(statusFilter === 'pending' ? 'all' : 'pending')}
-            className={`p-3.5 rounded-xl border cursor-pointer transition shadow-sm flex items-center justify-between ${
+            className={`p-3.5 sm:p-4 rounded-xl border cursor-pointer transition-all duration-150 active:scale-[0.98] shadow-xs flex items-center justify-between ${
               statusFilter === 'pending'
-                ? 'bg-amber-50 border-amber-300 ring-2 ring-amber-400'
+                ? 'bg-amber-500/10 border-amber-500/40 ring-2 ring-amber-400/40'
                 : 'bg-white border-slate-200 hover:border-amber-300'
             }`}
           >
             <div>
               <span className="text-xs text-amber-700 font-medium block">Offen für Feedback</span>
-              <span className="text-lg sm:text-2xl font-black text-amber-900">{pendingCount}</span>
+              <span className="text-xl sm:text-2xl font-black font-mono tabular-nums text-amber-900">{pendingCount}</span>
             </div>
-            <div className="w-9 h-9 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-xs">
+            <div className="w-10 h-10 rounded-full bg-amber-500/15 text-amber-700 flex items-center justify-center font-bold text-xs">
               <AlertCircle className="w-4 h-4" />
             </div>
           </div>
 
           <div
             onClick={() => setStatusFilter(statusFilter === 'reviewed' ? 'all' : 'reviewed')}
-            className={`p-3.5 rounded-xl border cursor-pointer transition shadow-sm flex items-center justify-between ${
+            className={`p-3.5 sm:p-4 rounded-xl border cursor-pointer transition-all duration-150 active:scale-[0.98] shadow-xs flex items-center justify-between ${
               statusFilter === 'reviewed'
-                ? 'bg-emerald-50 border-emerald-300 ring-2 ring-emerald-400'
+                ? 'bg-emerald-500/10 border-emerald-500/40 ring-2 ring-emerald-400/40'
                 : 'bg-white border-slate-200 hover:border-emerald-300'
             }`}
           >
             <div>
               <span className="text-xs text-emerald-700 font-medium block">Feedback erteilt</span>
-              <span className="text-lg sm:text-2xl font-black text-emerald-900">{reviewedCount}</span>
+              <span className="text-xl sm:text-2xl font-black font-mono tabular-nums text-emerald-900">{reviewedCount}</span>
             </div>
-            <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">
+            <div className="w-10 h-10 rounded-full bg-emerald-500/15 text-emerald-700 flex items-center justify-center font-bold text-xs">
               <CheckCircle2 className="w-4 h-4" />
             </div>
           </div>
         </div>
 
         {/* Filter & Group Controls Bar */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
           <div className="flex flex-col lg:flex-row gap-3 items-center justify-between">
             {/* Search */}
             <div className="relative w-full lg:w-64">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Schüler, Klasse, Betrieb..."
-                className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-xs sm:text-sm focus:ring-2 focus:ring-school-blue focus:outline-none"
+                className="w-full pl-9 pr-3 py-2.5 min-h-[44px] border border-slate-300 rounded-lg text-base sm:text-sm focus:ring-2 focus:ring-school-blue focus:outline-none transition"
               />
             </div>
 
             {/* Dropdown Filters */}
             <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
               {/* Filter Schuljahr */}
-              <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200 shadow-sm">
+              <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 min-h-[44px] rounded-lg border border-slate-200 shadow-xs">
                 <Calendar className="w-3.5 h-3.5 text-school-blue" />
-                <span className="text-xs font-semibold text-slate-600">Schuljahr:</span>
+                <span className="text-xs font-semibold text-slate-500">Schuljahr:</span>
                 <select
                   value={yearFilter}
                   onChange={(e) => setYearFilter(e.target.value)}
-                  className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
+                  className="bg-transparent text-base sm:text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
                 >
                   {SCHOOL_YEARS.map((y) => (
                     <option key={y} value={y}>
@@ -592,13 +592,13 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
               </div>
 
               {/* Filter Klasse */}
-              <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200">
+              <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 min-h-[44px] rounded-lg border border-slate-200">
                 <School className="w-3.5 h-3.5 text-school-blue" />
-                <span className="text-xs font-semibold text-slate-600">Klasse:</span>
+                <span className="text-xs font-semibold text-slate-500">Klasse:</span>
                 <select
                   value={classFilter}
                   onChange={(e) => setClassFilter(e.target.value)}
-                  className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
+                  className="bg-transparent text-base sm:text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
                 >
                   <option value="Alle">Alle Klassen</option>
                   {AVAILABLE_CLASSES.map((c) => (
@@ -610,13 +610,13 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
               </div>
 
               {/* Filter Turnus */}
-              <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200">
+              <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 min-h-[44px] rounded-lg border border-slate-200">
                 <Layers className="w-3.5 h-3.5 text-school-blue" />
-                <span className="text-xs font-semibold text-slate-600">Turnus:</span>
+                <span className="text-xs font-semibold text-slate-500">Turnus:</span>
                 <select
                   value={stageFilter}
                   onChange={(e) => setStageFilter(e.target.value)}
-                  className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
+                  className="bg-transparent text-base sm:text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
                 >
                   <option value="Alle">Alle Turnusse</option>
                   {AVAILABLE_STAGES.map((s) => (
@@ -1346,10 +1346,10 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
                       <div
                         key={rep.id}
                         onClick={() => rep.id && handleToggleTurnusSelection(rep.id)}
-                        className={`p-3 rounded-xl border cursor-pointer transition flex items-start justify-between gap-2.5 ${
+                        className={`p-3 rounded-xl border cursor-pointer transition-all duration-150 active:scale-[0.98] flex items-start justify-between gap-2.5 ${
                           isSelected
                             ? 'bg-purple-50/80 border-purple-300 ring-2 ring-purple-300 shadow-xs'
-                            : 'bg-white border-slate-200 hover:border-purple-200 opacity-70'
+                            : 'bg-white border-slate-200 hover:border-purple-200 opacity-75'
                         }`}
                       >
                         <div className="flex items-start gap-2.5">
@@ -1363,21 +1363,21 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
                           <div>
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="font-bold text-slate-900 text-xs">{rep.stage}</span>
-                              <span className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded font-semibold">
+                              <span className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded font-semibold font-mono tabular-nums">
                                 {rep.schoolYear}
                               </span>
                             </div>
                             <span className="text-[11px] text-slate-600 block mt-0.5 font-medium">
                               {rep.companyName || 'Kein Betrieb'}
                             </span>
-                            <span className="text-[10px] text-slate-400 block">
+                            <span className="text-[10px] text-slate-400 block font-mono tabular-nums">
                               Datum: {rep.reportDate || '—'}
                             </span>
                           </div>
                         </div>
 
-                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                          rep.teacherFeedback?.comment ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                          rep.teacherFeedback?.comment ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20' : 'bg-slate-500/10 text-slate-700 border-slate-500/20'
                         }`}>
                           {rep.teacherFeedback?.comment ? 'mit Feedback' : 'Bericht'}
                         </span>
@@ -1392,7 +1392,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
                     type="button"
                     onClick={handleGeneratePortfolio}
                     disabled={isPortfolioLoading || selectedTurnusIds.length === 0}
-                    className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold py-2.5 px-5 rounded-xl text-xs shadow-md transition disabled:opacity-50"
+                    className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold py-2.5 px-5 min-h-[44px] rounded-xl text-xs sm:text-sm shadow-md transition-all duration-150 active:scale-[0.98] disabled:opacity-50"
                   >
                     {isPortfolioLoading ? (
                       <>
@@ -1702,10 +1702,10 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
             </div>
 
             <span
-              className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${
+              className={`text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full flex-shrink-0 border ${
                 hasFeedback
-                  ? 'bg-emerald-100 text-emerald-800'
-                  : 'bg-amber-100 text-amber-800'
+                  ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20 shadow-xs'
+                  : 'bg-amber-500/10 text-amber-700 border-amber-500/20 shadow-xs'
               }`}
             >
               {hasFeedback ? 'Feedback erteilt' : 'Offen'}
@@ -1719,7 +1719,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
             </div>
             <div className="flex items-center gap-1.5 text-slate-500">
               <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
-              <span>{rep.reportDate || '—'} ({rep.stage})</span>
+              <span><span className="font-mono tabular-nums">{rep.reportDate || '—'}</span> ({rep.stage})</span>
             </div>
           </div>
         </div>
@@ -1728,7 +1728,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
         <div className="border-t border-slate-100 pt-3 flex flex-wrap gap-2">
           <button
             onClick={() => setActiveReport(rep)}
-            className="flex-1 inline-flex items-center justify-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 px-3 rounded-lg text-xs transition"
+            className="flex-1 inline-flex items-center justify-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 px-3 rounded-lg text-xs transition-all duration-150 active:scale-[0.98]"
           >
             <Eye className="w-3.5 h-3.5" />
             <span>Bericht</span>
@@ -1737,14 +1737,14 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
           <button
             onClick={() => exportReportToPDF(rep)}
             title="PDF herunterladen"
-            className="inline-flex items-center justify-center p-2 rounded-lg bg-slate-100 hover:bg-blue-50 hover:text-school-blue text-slate-600 transition"
+            className="inline-flex items-center justify-center p-2 rounded-lg bg-slate-100 hover:bg-blue-50 hover:text-school-blue text-slate-600 transition-all duration-150 active:scale-[0.98]"
           >
             <FileDown className="w-4 h-4" />
           </button>
 
           <button
             onClick={() => handleGenerateAi(rep)}
-            className="flex-1 inline-flex items-center justify-center gap-1 bg-gradient-to-r from-school-blue to-school-cyan hover:from-school-darkblue hover:to-school-blue text-white font-bold py-2 px-3 rounded-lg text-xs shadow-sm transition"
+            className="flex-1 inline-flex items-center justify-center gap-1 bg-gradient-to-r from-school-blue to-school-cyan hover:from-school-darkblue hover:to-school-blue text-white font-bold py-2 px-3 rounded-lg text-xs shadow-xs transition-all duration-150 active:scale-[0.98]"
           >
             <Sparkles className="w-3.5 h-3.5 text-school-orange" />
             <span>KI-Feedback</span>
@@ -1757,13 +1757,13 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
               <button
                 onClick={() => handleOpenPortfolio(rep.studentName, rep.studentCode, rep.studentClass)}
                 title={lastGen ? `Portfolio-Entwicklungsbericht (Zuletzt generiert: ${lastGen})` : 'Portfolio-Entwicklungsbericht für diesen Schüler erstellen'}
-                className="inline-flex items-center justify-center gap-1.5 bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 font-bold py-1.5 px-2.5 rounded-lg text-xs transition"
+                className="inline-flex items-center justify-center gap-1.5 bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 font-bold py-1.5 px-2.5 rounded-lg text-xs transition-all duration-150 active:scale-[0.98]"
               >
                 <Award className="w-3.5 h-3.5 text-purple-600 shrink-0" />
                 <div className="flex flex-col items-start leading-none text-left">
                   <span>Portfolio</span>
                   {lastGen && (
-                    <span className="text-[9px] font-normal text-purple-700 mt-0.5 whitespace-nowrap">
+                    <span className="text-[9px] font-mono tabular-nums text-purple-700 mt-0.5 whitespace-nowrap">
                       Zuletzt: {lastGen}
                     </span>
                   )}

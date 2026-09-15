@@ -210,7 +210,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
                         placeholder="z. B. Max Mustermann"
-                        className="w-full bg-white border border-slate-300 rounded-xl pl-9 pr-3.5 py-2.5 text-sm focus:ring-2 focus:ring-school-blue focus:outline-none"
+                        className="w-full bg-white border border-slate-300 rounded-xl pl-9 pr-3.5 py-2.5 text-base sm:text-sm min-h-[44px] focus:ring-2 focus:ring-school-blue focus:outline-none"
                         required
                         autoFocus
                       />
@@ -223,7 +223,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                         Dein automatisch erstelltes Login-Kürzel:
                       </span>
                       <div className="flex items-center justify-between">
-                        <span className="text-xl font-black font-mono tracking-wider text-school-darkblue">
+                        <span className="text-xl font-black font-mono tabular-nums tracking-wider text-school-darkblue">
                           {previewCode}
                         </span>
                         <span className="text-[10px] bg-blue-100 text-school-blue font-bold px-2 py-0.5 rounded-full">
@@ -240,7 +240,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   <button
                     type="submit"
                     disabled={isLoading || !previewCode}
-                    className="w-full bg-school-blue hover:bg-school-darkblue text-white font-bold py-2.5 px-4 rounded-xl text-sm shadow transition flex items-center justify-center gap-2 disabled:opacity-50"
+                    className="w-full bg-school-blue hover:bg-school-darkblue text-white font-bold py-2.5 px-4 min-h-[44px] rounded-xl text-sm shadow transition flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98]"
                   >
                     {isLoading ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -266,7 +266,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                         value={studentCode}
                         onChange={(e) => setStudentCode(e.target.value.toUpperCase())}
                         placeholder="z. B. MMUS oder LMUE"
-                        className="w-full bg-white border border-slate-300 rounded-xl pl-9 pr-3.5 py-2.5 text-sm font-mono uppercase tracking-wider focus:ring-2 focus:ring-school-blue focus:outline-none"
+                        className="w-full bg-white border border-slate-300 rounded-xl pl-9 pr-3.5 py-2.5 text-base sm:text-sm min-h-[44px] font-mono tabular-nums uppercase tracking-wider focus:ring-2 focus:ring-school-blue focus:outline-none"
                         required
                         autoFocus
                       />
@@ -280,7 +280,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   <button
                     type="submit"
                     disabled={isLoading || !studentCode.trim()}
-                    className="w-full bg-school-blue hover:bg-school-darkblue text-white font-bold py-2.5 px-4 rounded-xl text-sm shadow transition flex items-center justify-center gap-2 disabled:opacity-50"
+                    className="w-full bg-school-blue hover:bg-school-darkblue text-white font-bold py-2.5 px-4 min-h-[44px] rounded-xl text-sm shadow transition flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98]"
                   >
                     {isLoading ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -302,13 +302,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   Lehrer-Passwort
                 </label>
                 <div className="relative">
-                  <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                  <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
                   <input
                     type="password"
                     value={teacherPassword}
                     onChange={(e) => setTeacherPassword(e.target.value)}
                     placeholder="Passwort eingeben (TIP2026)"
-                    className="w-full bg-white border border-slate-300 rounded-xl pl-9 pr-3.5 py-2.5 text-sm focus:ring-2 focus:ring-school-blue focus:outline-none"
+                    className="w-full bg-white border border-slate-300 rounded-xl pl-9 pr-3.5 py-2.5 text-base sm:text-sm min-h-[44px] focus:ring-2 focus:ring-school-blue focus:outline-none"
                     required
                     autoFocus
                   />
@@ -323,7 +323,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               <button
                 type="submit"
                 disabled={isLoading || !teacherPassword.trim()}
-                className="w-full bg-school-darkblue hover:bg-slate-900 text-white font-bold py-2.5 px-4 rounded-xl text-sm shadow transition flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full bg-school-darkblue hover:bg-slate-900 text-white font-bold py-2.5 px-4 min-h-[44px] rounded-xl text-sm shadow transition flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98]"
               >
                 {isLoading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />

@@ -122,7 +122,7 @@ export const StepSelfReflection: React.FC<StepSelfReflectionProps> = ({
                 rows={2}
                 value={report.learnedExplanation}
                 onChange={(e) => onChange('learnedExplanation', e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition leading-relaxed"
+                className="w-full bg-white border border-slate-300 rounded-lg p-3 text-base sm:text-sm focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition leading-relaxed"
                 placeholder="Erläuterung: Welche Fachkenntnisse, Fähigkeiten oder Werkzeuge hast du neu gelernt?"
               />
             </motion.div>
@@ -165,7 +165,7 @@ export const StepSelfReflection: React.FC<StepSelfReflectionProps> = ({
                 rows={2}
                 value={report.overwhelmedExplanation}
                 onChange={(e) => onChange('overwhelmedExplanation', e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition leading-relaxed"
+                className="w-full bg-white border border-slate-300 rounded-lg p-3 text-base sm:text-sm focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition leading-relaxed"
                 placeholder="Erläuterung: Wobei hast du dich überfordert gefühlt und woran lag es?"
               />
             </motion.div>
@@ -211,11 +211,11 @@ export const StepSelfReflection: React.FC<StepSelfReflectionProps> = ({
       )}
 
       {/* Navigation Buttons */}
-      <div className="flex justify-between items-center pt-3">
+      <div className="flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center gap-3 pt-3">
         <button
           type="button"
           onClick={onPrev}
-          className="inline-flex items-center gap-2 text-slate-600 hover:text-slate-900 font-medium py-2.5 px-4 rounded-lg hover:bg-slate-100 transition"
+          className="inline-flex items-center justify-center gap-2 text-slate-600 hover:text-slate-900 font-medium py-3 sm:py-2.5 px-4 rounded-xl sm:rounded-lg hover:bg-slate-100 transition active:scale-[0.98]"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Zurück</span>
@@ -224,7 +224,7 @@ export const StepSelfReflection: React.FC<StepSelfReflectionProps> = ({
         <button
           type="button"
           onClick={onNext}
-          className="inline-flex items-center gap-2 bg-gradient-to-r from-school-blue to-school-cyan hover:from-school-darkblue hover:to-school-blue text-white font-bold py-3 px-6 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 transform hover:-translate-y-0.5"
+          className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-school-blue to-school-cyan hover:from-school-darkblue hover:to-school-blue text-white font-bold py-3.5 px-6 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 transform hover:-translate-y-0.5 active:scale-[0.98]"
         >
           <span>Weiter zum Abschluss</span>
           <ArrowRight className="w-4 h-4" />

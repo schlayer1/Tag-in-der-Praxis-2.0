@@ -38,7 +38,7 @@ export const StepDailyLog: React.FC<StepDailyLogProps> = ({
             rows={3}
             value={report.taskDescription}
             onChange={(e) => onChange('taskDescription', e.target.value)}
-            className="w-full border border-slate-300 rounded-lg p-3.5 text-sm focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition leading-relaxed"
+            className="w-full border border-slate-300 rounded-lg p-3.5 text-base sm:text-sm focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition leading-relaxed"
             placeholder="Beschreibe deine Hauptaufgaben, Werkzeuge, Maschinen oder Arbeitsschritte..."
           />
         </div>
@@ -61,17 +61,17 @@ export const StepDailyLog: React.FC<StepDailyLogProps> = ({
           rows={4}
           value={report.dailySchedule}
           onChange={(e) => onChange('dailySchedule', e.target.value)}
-          className="w-full border border-slate-300 rounded-lg p-3.5 text-sm focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition leading-relaxed font-mono sm:font-sans"
+          className="w-full border border-slate-300 rounded-lg p-3.5 text-base sm:text-sm focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition leading-relaxed font-mono tabular-nums sm:font-sans"
           placeholder="08:00 Uhr: Arbeitsbeginn, Sicherheitsunterweisung&#10;09:30 Uhr: Vorbereitung der Werkstücke&#10;12:00 Uhr: Mittagspause&#10;12:45 Uhr: Montagearbeiten..."
         />
       </div>
 
       {/* Navigation Buttons */}
-      <div className="flex justify-between items-center pt-2">
+      <div className="flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center gap-3 pt-2">
         <button
           type="button"
           onClick={onPrev}
-          className="inline-flex items-center gap-2 text-slate-600 hover:text-slate-900 font-medium py-2.5 px-4 rounded-lg hover:bg-slate-100 transition"
+          className="inline-flex items-center justify-center gap-2 text-slate-600 hover:text-slate-900 font-medium py-3 sm:py-2.5 px-4 rounded-xl sm:rounded-lg hover:bg-slate-100 transition active:scale-[0.98]"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Zurück</span>
@@ -80,7 +80,7 @@ export const StepDailyLog: React.FC<StepDailyLogProps> = ({
         <button
           type="button"
           onClick={onNext}
-          className="inline-flex items-center gap-2 bg-gradient-to-r from-school-blue to-school-cyan hover:from-school-darkblue hover:to-school-blue text-white font-bold py-3 px-6 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 transform hover:-translate-y-0.5"
+          className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-school-blue to-school-cyan hover:from-school-darkblue hover:to-school-blue text-white font-bold py-3.5 px-6 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 transform hover:-translate-y-0.5 active:scale-[0.98]"
         >
           <span>Weiter zur Selbsteinschätzung</span>
           <ArrowRight className="w-4 h-4" />
