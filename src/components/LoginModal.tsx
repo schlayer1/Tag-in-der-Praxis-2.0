@@ -307,7 +307,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     type="password"
                     value={teacherPassword}
                     onChange={(e) => setTeacherPassword(e.target.value)}
-                    placeholder="Passwort eingeben (TIP2026)"
+                    placeholder="Passwort eingeben"
                     className="w-full bg-white border border-slate-300 rounded-xl pl-9 pr-3.5 py-2.5 text-base sm:text-sm min-h-[44px] focus:ring-2 focus:ring-school-blue focus:outline-none"
                     required
                     autoFocus
