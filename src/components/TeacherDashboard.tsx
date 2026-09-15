@@ -1662,7 +1662,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
                   </select>
                 </div>
                 {/* Farblich abgesetztes Schuljahr */}
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shadow-xs ${yearBadgeStyle}`}>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shadow-xs whitespace-nowrap ${yearBadgeStyle}`}>
                   {repYear}
                 </span>
               </div>
@@ -1702,13 +1702,20 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
             </div>
 
             <span
-              className={`text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full flex-shrink-0 border ${
+              className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full flex-shrink-0 border inline-flex items-center gap-1 ${
                 hasFeedback
                   ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20 shadow-xs'
                   : 'bg-amber-500/10 text-amber-700 border-amber-500/20 shadow-xs'
               }`}
             >
-              {hasFeedback ? 'Feedback erteilt' : 'Offen'}
+              {hasFeedback ? (
+                <>
+                  <Check className="w-3 h-3 text-emerald-600 stroke-[2.5]" />
+                  <span>Feedback</span>
+                </>
+              ) : (
+                'Offen'
+              )}
             </span>
           </div>
 
