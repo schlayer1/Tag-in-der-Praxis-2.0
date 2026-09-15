@@ -97,7 +97,7 @@ export const StepBasicInfo: React.FC<StepBasicInfoProps> = ({
                 value={loginCode}
                 readOnly
                 placeholder="Wird generiert..."
-                className="w-full bg-blue-50/70 border border-blue-200 text-school-darkblue font-mono tabular-nums font-black tracking-wider rounded-lg px-3.5 py-2.5 text-base sm:text-sm min-h-[44px] cursor-default focus:outline-none"
+                className="w-full bg-blue-50/70 border border-blue-200 text-school-darkblue font-bold tracking-wide rounded-lg px-3.5 py-2.5 text-base sm:text-sm min-h-[44px] cursor-default focus:outline-none"
               />
             </div>
           </div>
@@ -169,7 +169,7 @@ export const StepBasicInfo: React.FC<StepBasicInfoProps> = ({
               id="report_date"
               value={report.reportDate}
               onChange={(e) => onChange('reportDate', e.target.value)}
-              className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-base sm:text-sm min-h-[44px] font-mono tabular-nums focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition"
+              className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-base sm:text-sm min-h-[44px] font-sans focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition"
               required
             />
           </div>
@@ -187,7 +187,7 @@ export const StepBasicInfo: React.FC<StepBasicInfoProps> = ({
                 id="start_time"
                 value={report.startTime}
                 onChange={(e) => onChange('startTime', e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-base sm:text-sm min-h-[44px] font-mono tabular-nums focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition"
+                className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-base sm:text-sm min-h-[44px] font-sans focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition"
               />
             </div>
 
@@ -202,7 +202,7 @@ export const StepBasicInfo: React.FC<StepBasicInfoProps> = ({
                 id="end_time"
                 value={report.endTime}
                 onChange={(e) => onChange('endTime', e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-base sm:text-sm min-h-[44px] font-mono tabular-nums focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition"
+                className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-base sm:text-sm min-h-[44px] font-sans focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition"
               />
             </div>
           </div>

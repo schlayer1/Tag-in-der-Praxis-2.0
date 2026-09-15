@@ -61,7 +61,7 @@ export const StepDailyLog: React.FC<StepDailyLogProps> = ({
           rows={4}
           value={report.dailySchedule}
           onChange={(e) => onChange('dailySchedule', e.target.value)}
-          className="w-full border border-slate-300 rounded-lg p-3.5 text-base sm:text-sm focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition leading-relaxed font-mono tabular-nums sm:font-sans"
+          className="w-full border border-slate-300 rounded-lg p-3.5 text-base sm:text-sm focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition leading-relaxed font-sans"
           placeholder="08:00 Uhr: Arbeitsbeginn, Sicherheitsunterweisung&#10;09:30 Uhr: Vorbereitung der Werkstücke&#10;12:00 Uhr: Mittagspause&#10;12:45 Uhr: Montagearbeiten..."
         />
       </div>
