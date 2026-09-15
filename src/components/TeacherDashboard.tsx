@@ -12,6 +12,7 @@ import {
   updateStudentClass,
   deleteReportDoc,
   archiveReportDoc,
+  archiveMultipleReportsDoc,
   AVAILABLE_CLASSES,
   SCHOOL_YEARS
 } from '../services/reportService';
@@ -23,6 +24,7 @@ import {
 } from '../services/geminiService';
 import { exportReportToPDF, exportPortfolioToPDF } from '../utils/pdfExport';
 import { PrintablePortfolioReport } from './PrintablePortfolioReport';
+import { FeedbackSnippetsBar } from './FeedbackSnippetsBar';
 import {
   GraduationCap,
   Search,
@@ -52,7 +54,8 @@ import {
   ArchiveRestore,
   Award,
   CheckSquare,
-  Square
+  Square,
+  Clock
 } from 'lucide-react';
 
 interface TeacherDashboardProps {
@@ -169,6 +172,18 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
 
   // Collapsed state for accordion groups
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+
+  // Bulk selection state
+  const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
+  const [isBulkProcessing, setIsBulkProcessing] = useState<boolean>(false);
+  const [bulkAiModalOpen, setBulkAiModalOpen] = useState<boolean>(false);
+  const [bulkAiProgress, setBulkAiProgress] = useState<{
+    current: number;
+    total: number;
+    currentName: string;
+    cancelled: boolean;
+  }>({ current: 0, total: 0, currentName: '', cancelled: false });
+  const bulkCancelledRef = useRef<boolean>(false);
 
   // Inspection
   const [activeReport, setActiveReport] = useState<PraxisReport | null>(null);
@@ -521,6 +536,161 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
     }
   };
 
+  // Bulk selection helpers
+  const handleToggleSelectReport = (reportId: string) => {
+    setSelectedReportIds((prev) =>
+      prev.includes(reportId) ? prev.filter((id) => id !== reportId) : [...prev, reportId]
+    );
+  };
+
+  const handleSelectAllFiltered = () => {
+    const allIds = filteredReports.map((r) => r.id).filter(Boolean) as string[];
+    setSelectedReportIds(allIds);
+  };
+
+  const handleClearSelection = () => {
+    setSelectedReportIds([]);
+  };
+
+  // Bulk Archive Action
+  const handleBulkArchive = async (toArchived: boolean) => {
+    if (selectedReportIds.length === 0) return;
+    setIsBulkProcessing(true);
+    try {
+      await archiveMultipleReportsDoc(selectedReportIds, toArchived);
+      setReports((prev) =>
+        prev.map((r) =>
+          r.id && selectedReportIds.includes(r.id)
+            ? { ...r, isArchived: toArchived, archivedAt: toArchived ? new Date().toISOString() : undefined }
+            : r
+        )
+      );
+      showNotification(
+        toArchived
+          ? `${selectedReportIds.length} Berichte erfolgreich ins Archiv verschoben.`
+          : `${selectedReportIds.length} Berichte aus dem Archiv wiederhergestellt.`
+      );
+      setSelectedReportIds([]);
+    } catch (err: any) {
+      console.error('Bulk archive error:', err);
+      showNotification('Fehler bei der Stapel-Archivierung.', 'error');
+    } finally {
+      setIsBulkProcessing(false);
+    }
+  };
+
+  // Bulk PDF Export
+  const handleBulkPdfExport = async () => {
+    const reportsToExport = reports.filter((r) => r.id && selectedReportIds.includes(r.id));
+    if (reportsToExport.length === 0) return;
+
+    setIsBulkProcessing(true);
+    showNotification(`Starte PDF-Export für ${reportsToExport.length} Berichte...`);
+    try {
+      for (const rep of reportsToExport) {
+        await exportReportToPDF(rep);
+        // Small delay between PDF downloads to avoid browser block
+        await new Promise((res) => setTimeout(res, 600));
+      }
+      showNotification(`${reportsToExport.length} PDFs erfolgreich heruntergeladen.`);
+    } catch (err: any) {
+      console.error('Bulk PDF export error:', err);
+      showNotification('Fehler beim PDF-Export einzelner Berichte.', 'error');
+    } finally {
+      setIsBulkProcessing(false);
+    }
+  };
+
+  // Free-Tier Safe Sequential Bulk AI Feedback (Taktung ca. 4.5s = max 13 RPM)
+  const handleStartBulkAi = async () => {
+    const apiKey = getGeminiApiKey();
+    if (!apiKey) {
+      setIsKeyModalOpen(true);
+      return;
+    }
+
+    const reportsToProcess = reports.filter(
+      (r) => r.id && selectedReportIds.includes(r.id) && !r.teacherFeedback?.comment
+    );
+
+    if (reportsToProcess.length === 0) {
+      showNotification('Alle ausgewählten Berichte haben bereits Feedback!', 'error');
+      return;
+    }
+
+    bulkCancelledRef.current = false;
+    setBulkAiModalOpen(true);
+    setBulkAiProgress({
+      current: 0,
+      total: reportsToProcess.length,
+      currentName: reportsToProcess[0]?.studentName || '',
+      cancelled: false,
+    });
+
+    let processedCount = 0;
+
+    for (let i = 0; i < reportsToProcess.length; i++) {
+      if (bulkCancelledRef.current) break;
+
+      const currentRep = reportsToProcess[i];
+      setBulkAiProgress({
+        current: i + 1,
+        total: reportsToProcess.length,
+        currentName: `${currentRep.studentName} (${currentRep.stage})`,
+        cancelled: false,
+      });
+
+      try {
+        const feedback = await generateFeedbackWithGemini(currentRep);
+        const feedbackText = feedback?.pedagogicalFeedback || '';
+        if (currentRep.id && feedbackText) {
+          await saveAiFeedback(currentRep.id, feedback);
+          // Also set as initial teacher feedback comment
+          await saveTeacherFeedback(
+            currentRep.id,
+            feedbackText,
+            'KI-Vorschlag (Lehrkraft)'
+          );
+
+          setReports((prev) =>
+            prev.map((r) =>
+              r.id === currentRep.id
+                ? {
+                    ...r,
+                    aiFeedback: feedback,
+                    teacherFeedback: {
+                      comment: feedbackText,
+                      reviewedBy: 'KI-Vorschlag (Lehrkraft)',
+                      reviewedAt: new Date().toISOString(),
+                      isPublished: true,
+                    },
+                    status: 'reviewed',
+                  }
+                : r
+            )
+          );
+          processedCount++;
+        }
+      } catch (err: any) {
+        console.warn(`Fehler bei KI für ${currentRep.studentName}:`, err);
+      }
+
+      // Free-Tier safety delay: 4.5 seconds between requests (if more items remain)
+      if (i < reportsToProcess.length - 1 && !bulkCancelledRef.current) {
+        await new Promise((res) => setTimeout(res, 4500));
+      }
+    }
+
+    setBulkAiModalOpen(false);
+    setSelectedReportIds([]);
+    showNotification(`KI-Feedback für ${processedCount} Berichte erfolgreich generiert.`);
+  };
+
+  const handleCancelBulkAi = () => {
+    bulkCancelledRef.current = true;
+    setBulkAiProgress((prev) => ({ ...prev, cancelled: true }));
+  };
+
   const activeReports = reports.filter((r) => !r.isArchived);
   const archivedReportsCount = reports.filter((r) => !!r.isArchived).length;
   const pendingCount = activeReports.filter((r) => !r.teacherFeedback?.comment).length;
@@ -774,6 +944,53 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
               </div>
             </div>
           </div>
+
+          {/* Quick Selection Toolbar for Filtered Reports */}
+          {filteredReports.length > 0 && (
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2 text-xs">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectedReportIds.length === filteredReports.length) {
+                      handleClearSelection();
+                    } else {
+                      handleSelectAllFiltered();
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-school-blue font-bold transition"
+                >
+                  {selectedReportIds.length === filteredReports.length && filteredReports.length > 0 ? (
+                    <>
+                      <CheckSquare className="w-3.5 h-3.5 text-school-blue" />
+                      <span>Alle abwählen</span>
+                    </>
+                  ) : (
+                    <>
+                      <Square className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Alle {filteredReports.length} auswählen</span>
+                    </>
+                  )}
+                </button>
+
+                {selectedReportIds.length > 0 && (
+                  <span className="font-bold text-school-blue bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md">
+                    {selectedReportIds.length} ausgewählt
+                  </span>
+                )}
+              </div>
+
+              {selectedReportIds.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleClearSelection}
+                  className="text-slate-400 hover:text-slate-600 font-semibold"
+                >
+                  Auswahl aufheben
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Reports Rendering */}
@@ -908,8 +1125,14 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
                     </select>
                   </div>
                 </h3>
-                <p className="text-xs text-slate-500">
-                  {activeReport.stage} • {activeReport.reportDate} • {activeReport.companyName}
+                <p className="text-xs text-slate-500 flex items-center gap-2 flex-wrap">
+                  <span>{activeReport.stage} • {activeReport.reportDate} • {activeReport.companyName}</span>
+                  {(activeReport.createdAt || activeReport.updatedAt) && (
+                    <span className="inline-flex items-center gap-1 text-slate-400 bg-slate-100 px-2 py-0.5 rounded font-mono text-[11px]">
+                      <Clock className="w-3 h-3 text-slate-500" />
+                      <span>Eingereicht: {new Date(activeReport.createdAt || activeReport.updatedAt || '').toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })} Uhr</span>
+                    </span>
+                  )}
                 </p>
               </div>
               <button
@@ -1034,13 +1257,25 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
             </div>
 
             <div className="p-4 border-t bg-slate-50 flex justify-between items-center flex-wrap gap-2">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={() => exportReportToPDF(activeReport)}
                   className="inline-flex items-center gap-1.5 bg-school-blue text-white text-xs font-bold py-2 px-3 sm:px-4 rounded-lg shadow hover:bg-school-darkblue transition"
                 >
                   <FileDown className="w-4 h-4" />
                   <span>PDF herunterladen</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    const rep = activeReport;
+                    setActiveReport(null);
+                    handleGenerateAi(rep);
+                  }}
+                  className="inline-flex items-center gap-1.5 bg-gradient-to-r from-school-blue to-school-cyan hover:from-school-darkblue hover:to-school-blue text-white text-xs font-bold py-2 px-3 sm:px-4 rounded-lg shadow transition"
+                >
+                  <Sparkles className="w-4 h-4 text-school-orange" />
+                  <span>Feedback / KI bearbeiten</span>
                 </button>
 
                 {(() => {
@@ -1171,6 +1406,18 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
                       className="w-full border border-slate-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-school-blue focus:outline-none leading-relaxed"
                       placeholder="Hier erscheint das generierte Feedback..."
                     />
+
+                    {/* Quick Snippets for Teacher Feedback */}
+                    <div className="pt-2">
+                      <FeedbackSnippetsBar
+                        onInsertText={(snippetText) => {
+                          setEditableFeedback((prev) => {
+                            if (!prev.trim()) return snippetText;
+                            return `${prev.trim()}\n\n${snippetText}`;
+                          });
+                        }}
+                      />
+                    </div>
                   </div>
 
                   {savedSuccess && (
@@ -1794,6 +2041,130 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
         </div>
       )}
 
+      {/* Floating Bulk Actions Bar (when at least 1 report is selected) */}
+      {selectedReportIds.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[105] max-w-2xl w-[92%] sm:w-auto bg-slate-900/95 backdrop-blur-md text-white px-4 py-3 rounded-2xl shadow-2xl border border-slate-700/80 flex items-center justify-between gap-3 flex-wrap animate-in fade-in slide-in-from-bottom duration-200">
+          <div className="flex items-center gap-2">
+            <span className="w-6 h-6 rounded-full bg-school-blue flex items-center justify-center font-mono font-bold text-xs">
+              {selectedReportIds.length}
+            </span>
+            <span className="text-xs font-semibold text-slate-200 hidden sm:inline">
+              Bericht{selectedReportIds.length > 1 ? 'e' : ''} ausgewählt:
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {/* Bulk AI Feedback */}
+            <button
+              type="button"
+              onClick={handleStartBulkAi}
+              disabled={isBulkProcessing}
+              className="inline-flex items-center gap-1.5 bg-gradient-to-r from-school-blue to-school-cyan hover:from-school-darkblue hover:to-school-blue text-white font-bold px-3 py-1.5 rounded-xl text-xs shadow-xs transition-all duration-150 active:scale-[0.98] disabled:opacity-50"
+              title="Für alle ausgewählten Berichte ohne Feedback automatisch KI-Vorschläge generieren (Free-Tier getaktet)"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-school-orange" />
+              <span>Stapel-KI</span>
+            </button>
+
+            {/* Bulk Archive */}
+            <button
+              type="button"
+              onClick={() => handleBulkArchive(true)}
+              disabled={isBulkProcessing}
+              className="inline-flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold px-3 py-1.5 rounded-xl text-xs border border-slate-700 transition-all duration-150 active:scale-[0.98] disabled:opacity-50"
+              title="Ausgewählte Berichte ins Archiv verschieben"
+            >
+              <Archive className="w-3.5 h-3.5" />
+              <span>Archivieren</span>
+            </button>
+
+            {/* Bulk Restore */}
+            <button
+              type="button"
+              onClick={() => handleBulkArchive(false)}
+              disabled={isBulkProcessing}
+              className="inline-flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-3 py-1.5 rounded-xl text-xs border border-slate-700 transition-all duration-150 active:scale-[0.98] disabled:opacity-50"
+              title="Ausgewählte Berichte wieder als aktiv setzen"
+            >
+              <ArchiveRestore className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Wiederherstellen</span>
+            </button>
+
+            {/* Bulk PDF */}
+            <button
+              type="button"
+              onClick={handleBulkPdfExport}
+              disabled={isBulkProcessing}
+              className="inline-flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-3 py-1.5 rounded-xl text-xs border border-slate-700 transition-all duration-150 active:scale-[0.98] disabled:opacity-50"
+              title="Ausgewählte Berichte nacheinander als PDF herunterladen"
+            >
+              <FileDown className="w-3.5 h-3.5" />
+              <span>PDFs</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleClearSelection}
+              className="p-1.5 text-slate-400 hover:text-white rounded-lg transition ml-1"
+              title="Auswahl aufheben"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk AI Progress Modal */}
+      {bulkAiModalOpen && (
+        <div className="fixed inset-0 z-[115] bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-slate-200 text-center animate-in fade-in zoom-in duration-150">
+            <div className="w-12 h-12 rounded-full bg-blue-50 text-school-blue mx-auto flex items-center justify-center">
+              <Sparkles className="w-6 h-6 text-school-orange animate-pulse" />
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-slate-900">
+                KI-Stapelverarbeitung aktiv
+              </h3>
+              <p className="text-xs text-slate-500">
+                Gemini Free-Tier Sicherheits-Taktung (1 Anfrage alle 4,5 Sek.)
+              </p>
+            </div>
+
+            <div className="space-y-2 text-left bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <div className="flex justify-between text-xs font-bold text-slate-700">
+                <span>Fortschritt:</span>
+                <span className="font-mono">{bulkAiProgress.current} von {bulkAiProgress.total}</span>
+              </div>
+
+              {/* Progress bar */}
+              <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                <div
+                  className="bg-gradient-to-r from-school-blue to-school-cyan h-2.5 rounded-full transition-all duration-300"
+                  style={{
+                    width: `${bulkAiProgress.total > 0 ? (bulkAiProgress.current / bulkAiProgress.total) * 100 : 0}%`,
+                  }}
+                />
+              </div>
+
+              <div className="text-[11px] text-slate-500 truncate">
+                Aktuell: <strong className="text-slate-800">{bulkAiProgress.currentName || 'Vorbereitung...'}</strong>
+              </div>
+            </div>
+
+            <div className="flex justify-center pt-2">
+              <button
+                type="button"
+                onClick={handleCancelBulkAi}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-600 text-xs font-bold transition"
+              >
+                Abbrechen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Offscreen printable portfolio template for html2pdf */}
       {portfolioResult && (
         <div
@@ -1821,75 +2192,113 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
     const repYear = normalizeSchoolYear(rep.schoolYear || calculateSchoolYear(rep.reportDate));
     const yearBadgeStyle = getSchoolYearBadgeStyle(repYear);
 
+    const isSelected = rep.id ? selectedReportIds.includes(rep.id) : false;
+
+    // Formatting exact submission timestamp
+    const submissionDateStr = rep.createdAt || rep.updatedAt;
+    let formattedSubmittedAt = '';
+    if (submissionDateStr) {
+      try {
+        const d = new Date(submissionDateStr);
+        if (!isNaN(d.getTime())) {
+          formattedSubmittedAt = `${d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}, ${d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`;
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
     return (
       <div
         key={rep.id}
-        className="bg-white rounded-xl border border-slate-200 hover:border-school-blue/60 p-5 shadow-sm hover:shadow-md transition flex flex-col justify-between space-y-4"
+        className={`bg-white rounded-xl border p-5 shadow-sm hover:shadow-md transition flex flex-col justify-between space-y-4 ${
+          isSelected
+            ? 'border-school-blue ring-2 ring-school-blue/30 bg-blue-50/20'
+            : 'border-slate-200 hover:border-school-blue/60'
+        }`}
       >
         <div className="space-y-2">
           <div className="flex items-start justify-between gap-2">
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <h4 className="font-bold text-slate-900 text-sm sm:text-base">
-                  {rep.studentName || 'Unbenannter Schüler'}
-                </h4>
-                {/* Klasse mit direktem Lehrer-Dropdown zur Klassenänderung */}
-                <div
-                  className="inline-flex items-center gap-1 bg-slate-100 hover:bg-blue-50 border border-slate-300 hover:border-school-blue rounded px-1.5 py-0.5 transition"
-                  onClick={(e) => e.stopPropagation()}
+            <div className="flex items-start gap-2.5">
+              {/* Checkbox for Bulk Actions */}
+              {rep.id && (
+                <button
+                  type="button"
+                  onClick={() => rep.id && handleToggleSelectReport(rep.id)}
+                  title={isSelected ? 'Abwählen' : 'Für Sammelaktion auswählen'}
+                  className="mt-0.5 p-0.5 text-slate-400 hover:text-school-blue transition"
                 >
-                  <label htmlFor={`class-select-${rep.id}`} className="sr-only">Klasse ändern</label>
-                  <select
-                    id={`class-select-${rep.id}`}
-                    value={rep.studentClass || '8a'}
-                    onChange={(e) => handleClassChange(rep, e.target.value)}
-                    title="Klasse des Schülers ändern (z. B. bei Wiederholung oder Wechsel 9a -> 9b)"
-                    className="bg-transparent text-[11px] text-slate-800 font-bold cursor-pointer focus:outline-none"
-                  >
-                    {AVAILABLE_CLASSES.map((c) => (
-                      <option key={c} value={c}>
-                        Kl. {c}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                {/* Farblich abgesetztes Schuljahr */}
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shadow-xs whitespace-nowrap ${yearBadgeStyle}`}>
-                  {repYear}
-                </span>
-              </div>
+                  {isSelected ? (
+                    <CheckSquare className="w-4 h-4 text-school-blue" />
+                  ) : (
+                    <Square className="w-4 h-4 text-slate-300 hover:text-slate-500" />
+                  )}
+                </button>
+              )}
 
-              {/* Login-Kürzel mit Kopier-Button für die Lehrkraft */}
-              <div className="flex items-center gap-1.5 pt-0.5">
-                <div className="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 text-amber-900 px-2 py-0.5 rounded-md font-mono text-xs font-bold">
-                  <Key className="w-3 h-3 text-amber-700" />
-                  <span>Login: {rep.studentCode || '—'}</span>
-                </div>
-                {rep.studentCode && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigator.clipboard.writeText(rep.studentCode || '');
-                      setCopiedCode(rep.studentCode || null);
-                      setTimeout(() => setCopiedCode(null), 2500);
-                    }}
-                    title="Kürzel kopieren, um es dem Schüler mitzugeben"
-                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 hover:text-school-blue hover:bg-blue-50 px-1.5 py-0.5 rounded transition"
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <h4 className="font-bold text-slate-900 text-sm sm:text-base">
+                    {rep.studentName || 'Unbenannter Schüler'}
+                  </h4>
+                  {/* Klasse mit direktem Lehrer-Dropdown zur Klassenänderung */}
+                  <div
+                    className="inline-flex items-center gap-1 bg-slate-100 hover:bg-blue-50 border border-slate-300 hover:border-school-blue rounded px-1.5 py-0.5 transition"
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    {copiedCode === rep.studentCode ? (
-                      <>
-                        <Check className="w-3 h-3 text-emerald-600" />
-                        <span className="text-emerald-700 font-bold">Kopiert!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3 h-3" />
-                        <span>Kopieren</span>
-                      </>
-                    )}
-                  </button>
-                )}
+                    <label htmlFor={`class-select-${rep.id}`} className="sr-only">Klasse ändern</label>
+                    <select
+                      id={`class-select-${rep.id}`}
+                      value={rep.studentClass || '8a'}
+                      onChange={(e) => handleClassChange(rep, e.target.value)}
+                      title="Klasse des Schülers ändern (z. B. bei Wiederholung oder Wechsel 9a -> 9b)"
+                      className="bg-transparent text-[11px] text-slate-800 font-bold cursor-pointer focus:outline-none"
+                    >
+                      {AVAILABLE_CLASSES.map((c) => (
+                        <option key={c} value={c}>
+                          Kl. {c}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {/* Farblich abgesetztes Schuljahr */}
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shadow-xs whitespace-nowrap ${yearBadgeStyle}`}>
+                    {repYear}
+                  </span>
+                </div>
+
+                {/* Login-Kürzel mit Kopier-Button für die Lehrkraft */}
+                <div className="flex items-center gap-1.5 pt-0.5">
+                  <div className="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 text-amber-900 px-2 py-0.5 rounded-md font-mono text-xs font-bold">
+                    <Key className="w-3 h-3 text-amber-700" />
+                    <span>Login: {rep.studentCode || '—'}</span>
+                  </div>
+                  {rep.studentCode && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigator.clipboard.writeText(rep.studentCode || '');
+                        setCopiedCode(rep.studentCode || null);
+                        setTimeout(() => setCopiedCode(null), 2500);
+                      }}
+                      title="Kürzel kopieren, um es dem Schüler mitzugeben"
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 hover:text-school-blue hover:bg-blue-50 px-1.5 py-0.5 rounded transition"
+                    >
+                      {copiedCode === rep.studentCode ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-600" />
+                          <span className="text-emerald-700 font-bold">Kopiert!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" />
+                          <span>Kopieren</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -1924,9 +2333,17 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
               <Building2 className="w-3.5 h-3.5 text-school-cyan flex-shrink-0" />
               <span className="truncate font-medium">{rep.companyName || '—'}</span>
             </div>
-            <div className="flex items-center gap-1.5 text-slate-500">
-              <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
-              <span><span className="font-mono tabular-nums">{rep.reportDate || '—'}</span> ({rep.stage})</span>
+            <div className="flex items-center justify-between flex-wrap gap-1 text-slate-500">
+              <div className="flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
+                <span><span className="font-mono tabular-nums">{rep.reportDate || '—'}</span> ({rep.stage})</span>
+              </div>
+              {formattedSubmittedAt && (
+                <div className="flex items-center gap-1 text-[10px] text-slate-400 font-mono" title={`Genauer Einreichungszeitpunkt: ${formattedSubmittedAt}`}>
+                  <Clock className="w-3 h-3 text-slate-400" />
+                  <span>Eingereicht: {formattedSubmittedAt}</span>
+                </div>
+              )}
             </div>
           </div>
         </div>

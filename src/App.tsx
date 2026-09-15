@@ -7,6 +7,7 @@ import {
   calculateSchoolYear,
   getPromotedClass
 } from './services/reportService';
+import { enqueueReportOffline, processOfflineQueue } from './services/offlineQueue';
 import { Header } from './components/Header';
 import { UserBar } from './components/UserBar';
 import { StudentFeedbackBanner } from './components/StudentFeedbackBanner';
@@ -143,15 +144,46 @@ export function App() {
     setCurrentStep(1);
   };
 
-  // Export PDF & Upload to Firestore
-  // Export PDF & Upload to Firestore
+  // Automatically process offline queue when coming online
+  useEffect(() => {
+    const handleOnline = async () => {
+      try {
+        const { synced } = await processOfflineQueue();
+        if (synced > 0) {
+          console.log(`[OfflineQueue] ${synced} Berichte erfolgreich nachsynchronisiert.`);
+        }
+      } catch (e) {
+        console.error('Offline queue sync error', e);
+      }
+    };
+
+    window.addEventListener('online', handleOnline);
+    // Also try on startup
+    if (navigator.onLine) {
+      handleOnline();
+    }
+    return () => window.removeEventListener('online', handleOnline);
+  }, []);
+
+  // Export PDF & Upload to Firestore (with Offline Fallback)
   const handleExportAndSave = async () => {
     // 1. Generate local PDF download
     await exportReportToPDF(report);
 
-    // 2. Upload/save report to Firestore
+    const code = studentCode || report.studentCode;
+
+    // 2. Check if offline -> queue locally
+    if (!navigator.onLine) {
+      enqueueReportOffline(report, code);
+      alert(
+        'Offline-Modus aktiv: Dein Tagesbericht wurde als PDF heruntergeladen und auf deinem Gerät zwischengespeichert.\n\nSobald du wieder Internet hast, wird er automatisch an die Schule übertragen!'
+      );
+      setReport((prev) => ({ ...prev, status: 'submitted' }));
+      return;
+    }
+
+    // 3. Upload/save report to Firestore
     try {
-      const code = studentCode || report.studentCode;
       const savedId = await saveReportToFirestore(report, code);
       setReport((prev) => ({ ...prev, id: savedId, status: 'submitted' }));
       if (code) {
@@ -160,17 +192,11 @@ export function App() {
       }
     } catch (err: any) {
       console.error('Firestore save failed:', err);
-      const isPermissionDenied =
-        err?.code === 'permission-denied' ||
-        err?.message?.includes('permission') ||
-        err?.message?.includes('Missing or insufficient permissions');
-      if (isPermissionDenied) {
-        alert(
-          'Hinweis zur Datenbank: Der Bericht konnte nicht online in Firebase gespeichert werden, da die Firestore-Sicherheitsregeln den Zugriff verweigern. Bitte hinterlege die Freigabe-Regeln in der Firebase Console unter "Firestore Database > Regeln".'
-        );
-      } else {
-        alert(`Hinweis zur Datenbank: Speichern fehlgeschlagen (${err?.message || err}).`);
-      }
+      // Fallback to queue if network failed during fetch
+      enqueueReportOffline(report, code);
+      alert(
+        'Netzwerk-Hinweis: Die Verbindung zur Datenbank wurde unterbrochen. Dein Bericht wurde lokal in die Warteschlange gelegt und wird bei stabiler Verbindung automatisch nachgesendet.'
+      );
     }
   };
 

@@ -530,6 +530,23 @@ export async function archiveReportDoc(reportId: string, isArchived: boolean = t
   });
 }
 
+// 7b. Mehrere Berichte im Stapel archivieren / wiederherstellen
+export async function archiveMultipleReportsDoc(reportIds: string[], isArchived: boolean = true): Promise<void> {
+  const validIds = reportIds.filter((id) => !id.startsWith('test_'));
+  if (validIds.length === 0) return;
+
+  const batch = writeBatch(db);
+  const now = isArchived ? new Date().toISOString() : null;
+  validIds.forEach((id) => {
+    const reportDoc = doc(db, REPORTS_COLLECTION, id);
+    batch.update(reportDoc, {
+      isArchived,
+      archivedAt: now,
+    });
+  });
+  await batch.commit();
+}
+
 // 8. JSON-Export für das Schuljahr-Backup (Herunterladen als Datei)
 export function exportReportsToJsonFile(reports: PraxisReport[], schoolYearLabel?: string): void {
   const cleanYear = (schoolYearLabel || calculateSchoolYear()).replace('/', '_');
