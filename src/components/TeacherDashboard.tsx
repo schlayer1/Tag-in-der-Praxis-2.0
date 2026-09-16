@@ -201,6 +201,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
   const [editableFeedback, setEditableFeedback] = useState<string>('');
   const [copied, setCopied] = useState<boolean>(false);
   const [savedSuccess, setSavedSuccess] = useState<boolean>(false);
+  const [isSavingFeedback, setIsSavingFeedback] = useState<boolean>(false);
   const [aiError, setAiError] = useState<string | null>(null);
 
   // Portfolio Modal State
@@ -363,7 +364,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
 
   const handleSaveFeedback = async () => {
     if (!aiReport?.id) return;
-    setIsAiLoading(true);
+    setIsSavingFeedback(true);
     try {
       await saveTeacherFeedback(aiReport.id, editableFeedback);
       if (aiResult) {
@@ -384,6 +385,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
             ? {
                 ...r,
                 teacherFeedback: updatedTeacherFeedback,
+                status: 'reviewed',
                 ...(aiResult ? { aiFeedback: aiResult } : {}),
               }
             : r
@@ -396,6 +398,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
             ? {
                 ...prev,
                 teacherFeedback: updatedTeacherFeedback,
+                status: 'reviewed',
                 ...(aiResult ? { aiFeedback: aiResult } : {}),
               }
             : null
@@ -407,6 +410,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
           ? {
               ...prev,
               teacherFeedback: updatedTeacherFeedback,
+              status: 'reviewed',
               ...(aiResult ? { aiFeedback: aiResult } : {}),
             }
           : null
@@ -414,12 +418,15 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
 
       setSavedSuccess(true);
       await loadReports();
-      setTimeout(() => setSavedSuccess(false), 3000);
+      setTimeout(() => {
+        setSavedSuccess(false);
+        setAiReport(null);
+      }, 1400);
     } catch (err: any) {
       console.error('Fehler beim Speichern des Feedbacks:', err);
       alert('Fehler beim Speichern des Feedbacks: ' + (err?.message || 'Bitte prüfen'));
     } finally {
-      setIsAiLoading(false);
+      setIsSavingFeedback(false);
     }
   };
 
@@ -1425,6 +1432,14 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
               </button>
             </div>
 
+            {/* Prominenter Erfolgs-Hinweis bei Speicherung direkt oben sichtbar */}
+            {savedSuccess && (
+              <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl text-xs text-emerald-900 font-bold flex items-center gap-2 shadow-xs flex-shrink-0 animate-fadeIn">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                <span>Feedback erfolgreich gespeichert & im Schülerkonto hinterlegt!</span>
+              </div>
+            )}
+
             <div className="flex-1 overflow-y-auto space-y-3 pr-1">
               {isAiLoading ? (
                 <div className="py-14 text-center space-y-3">
@@ -1510,27 +1525,21 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
                       />
                     </div>
                   </div>
-
-                  {savedSuccess && (
-                    <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                      <span>Feedback erfolgreich im Schüler-Zugang freigegeben!</span>
-                    </div>
-                  )}
                 </>
               )}
             </div>
 
             {/* Actions */}
-            <div className="border-t pt-3 flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex-shrink-0 border-t pt-3 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-2.5 bg-white">
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => handleGenerateAi(aiReport)}
-                  disabled={isAiLoading}
-                  className="text-xs font-bold text-slate-700 hover:text-slate-900 border border-slate-200 bg-slate-50 hover:bg-slate-100 py-2 px-3 rounded-lg transition"
+                  disabled={isAiLoading || isSavingFeedback}
+                  className="flex-1 sm:flex-initial text-xs font-bold text-slate-700 hover:text-slate-900 border border-slate-200 bg-slate-50 hover:bg-slate-100 py-2.5 px-3 rounded-xl transition min-h-[42px] flex items-center justify-center gap-1.5"
                 >
-                  Neu generieren
+                  <Sparkles className="w-3.5 h-3.5 text-school-orange" />
+                  <span>Neu generieren</span>
                 </button>
                 <button
                   type="button"
@@ -1541,7 +1550,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
                       prompt,
                     });
                   }}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 py-2 px-3 rounded-lg transition"
+                  className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 py-2.5 px-3 rounded-xl transition min-h-[42px]"
                   title="Masterprompt für externe KIs (ChatGPT, Claude etc.) anzeigen & kopieren"
                 >
                   <Copy className="w-3.5 h-3.5" />
@@ -1549,15 +1558,33 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
                 </button>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center">
                 <button
                   type="button"
                   onClick={handleSaveFeedback}
-                  disabled={isAiLoading || !editableFeedback.trim()}
-                  className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs shadow transition disabled:opacity-50 active:scale-[0.98]"
+                  disabled={isSavingFeedback || isAiLoading || !editableFeedback.trim()}
+                  className={`w-full sm:w-auto inline-flex items-center justify-center gap-2 font-bold py-3 px-5 rounded-xl text-xs sm:text-sm shadow-md transition-all duration-150 min-h-[44px] active:scale-[0.98] ${
+                    savedSuccess
+                      ? 'bg-emerald-600 text-white ring-2 ring-emerald-400'
+                      : 'bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50'
+                  }`}
                 >
-                  <Save className="w-4 h-4" />
-                  <span>Im Schülerkonto freigeben</span>
+                  {isSavingFeedback ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-white" />
+                      <span>Wird gespeichert...</span>
+                    </>
+                  ) : savedSuccess ? (
+                    <>
+                      <CheckCircle2 className="w-4 h-4 text-white" />
+                      <span>Erfolgreich gespeichert!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4 text-white" />
+                      <span>Feedback speichern & freigeben</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>

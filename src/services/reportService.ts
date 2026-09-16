@@ -2,6 +2,7 @@ import {
   collection,
   doc,
   addDoc,
+  setDoc,
   updateDoc,
   deleteDoc,
   getDocs,
@@ -493,16 +494,53 @@ export async function saveTeacherFeedback(
   comment: string,
   teacherName: string = 'Lehrkraft'
 ): Promise<void> {
-  if (reportId.startsWith('test_')) return;
   const reportDoc = doc(db, REPORTS_COLLECTION, reportId);
-  await updateDoc(reportDoc, {
-    'teacherFeedback.comment': comment.trim(),
-    'teacherFeedback.reviewedBy': teacherName,
-    'teacherFeedback.reviewedAt': new Date().toISOString(),
-    'teacherFeedback.isPublished': true,
-    status: 'reviewed',
-    updatedAt: new Date().toISOString(),
-  });
+
+  // Falls es ein Testkandidat ist, auch in INITIAL_TEST_REPORTS aktualisieren und in Firestore persistieren
+  if (reportId.startsWith('test_')) {
+    const testRep = INITIAL_TEST_REPORTS.find((r) => r.id === reportId);
+    if (testRep) {
+      testRep.teacherFeedback = {
+        comment: comment.trim(),
+        reviewedBy: teacherName,
+        reviewedAt: new Date().toISOString(),
+        isPublished: true,
+      };
+      testRep.status = 'reviewed';
+      testRep.updatedAt = new Date().toISOString();
+
+      try {
+        await setDoc(
+          reportDoc,
+          {
+            ...testRep,
+            teacherFeedback: testRep.teacherFeedback,
+            status: 'reviewed',
+            updatedAt: testRep.updatedAt,
+          },
+          { merge: true }
+        );
+      } catch (e) {
+        console.warn('Could not persist test report to Firestore (offline or rules):', e);
+      }
+      return;
+    }
+  }
+
+  await setDoc(
+    reportDoc,
+    {
+      teacherFeedback: {
+        comment: comment.trim(),
+        reviewedBy: teacherName,
+        reviewedAt: new Date().toISOString(),
+        isPublished: true,
+      },
+      status: 'reviewed',
+      updatedAt: new Date().toISOString(),
+    },
+    { merge: true }
+  );
 }
 
 // 5. KI-Feedback am Bericht hinterlegen
@@ -510,7 +548,6 @@ export async function saveAiFeedback(
   reportId: string,
   aiFeedback: AiFeedback
 ): Promise<void> {
-  if (reportId.startsWith('test_')) return;
   const reportDoc = doc(db, REPORTS_COLLECTION, reportId);
 
   // Clean undefined values
@@ -522,10 +559,36 @@ export async function saveAiFeedback(
     tips: Array.isArray(aiFeedback.tips) ? aiFeedback.tips : [],
   };
 
-  await updateDoc(reportDoc, {
-    aiFeedback: cleanAiFeedback,
-    updatedAt: new Date().toISOString(),
-  });
+  if (reportId.startsWith('test_')) {
+    const testRep = INITIAL_TEST_REPORTS.find((r) => r.id === reportId);
+    if (testRep) {
+      testRep.aiFeedback = cleanAiFeedback as AiFeedback;
+      testRep.updatedAt = new Date().toISOString();
+      try {
+        await setDoc(
+          reportDoc,
+          {
+            ...testRep,
+            aiFeedback: cleanAiFeedback,
+            updatedAt: testRep.updatedAt,
+          },
+          { merge: true }
+        );
+      } catch (e) {
+        console.warn('Could not persist test AI feedback to Firestore:', e);
+      }
+      return;
+    }
+  }
+
+  await setDoc(
+    reportDoc,
+    {
+      aiFeedback: cleanAiFeedback,
+      updatedAt: new Date().toISOString(),
+    },
+    { merge: true }
+  );
 }
 
 // 6. Einzelnen Bericht löschen
