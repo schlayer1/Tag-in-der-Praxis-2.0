@@ -31,7 +31,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   }, [isOpen, defaultTab]);
 
   // Student Mode: 'login' (mit Kürzel) vs. 'create' (aus Name generieren)
-  const [studentMode, setStudentMode] = useState<'create' | 'login'>('create');
+  const [studentMode, setStudentMode] = useState<'create' | 'login'>('login');
   const [fullName, setFullName] = useState('');
   const [studentCode, setStudentCode] = useState('');
 
@@ -161,24 +161,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
           {tab === 'student' ? (
             <div className="space-y-4">
-              {/* Sub-Switch: Neu (Kürzel generieren) vs. Bereits Kürzel vorhanden */}
+              {/* Sub-Switch: Bereits Kürzel vorhanden (Standard) vs. Neu (Kürzel generieren) */}
               <div className="flex border-b border-slate-200 pb-2 gap-4 text-xs font-semibold">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStudentMode('create');
-                    setError(null);
-                  }}
-                  className={`pb-1 transition flex items-center gap-1.5 ${
-                    studentMode === 'create'
-                      ? 'text-school-blue border-b-2 border-school-blue font-bold'
-                      : 'text-slate-400 hover:text-slate-700'
-                  }`}
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-school-orange" />
-                  <span>Kürzel erstellen (Neu)</span>
-                </button>
-
                 <button
                   type="button"
                   onClick={() => {
@@ -193,6 +177,22 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 >
                   <User className="w-3.5 h-3.5" />
                   <span>Ich habe ein Kürzel</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStudentMode('create');
+                    setError(null);
+                  }}
+                  className={`pb-1 transition flex items-center gap-1.5 ${
+                    studentMode === 'create'
+                      ? 'text-school-blue border-b-2 border-school-blue font-bold'
+                      : 'text-slate-400 hover:text-slate-700'
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-school-orange" />
+                  <span>Neues Kürzel anlegen</span>
                 </button>
               </div>
 

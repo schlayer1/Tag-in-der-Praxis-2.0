@@ -493,13 +493,15 @@ export async function saveTeacherFeedback(
   comment: string,
   teacherName: string = 'Lehrkraft'
 ): Promise<void> {
+  if (reportId.startsWith('test_')) return;
   const reportDoc = doc(db, REPORTS_COLLECTION, reportId);
   await updateDoc(reportDoc, {
-    'teacherFeedback.comment': comment,
+    'teacherFeedback.comment': comment.trim(),
     'teacherFeedback.reviewedBy': teacherName,
     'teacherFeedback.reviewedAt': new Date().toISOString(),
     'teacherFeedback.isPublished': true,
     status: 'reviewed',
+    updatedAt: new Date().toISOString(),
   });
 }
 
@@ -508,9 +510,21 @@ export async function saveAiFeedback(
   reportId: string,
   aiFeedback: AiFeedback
 ): Promise<void> {
+  if (reportId.startsWith('test_')) return;
   const reportDoc = doc(db, REPORTS_COLLECTION, reportId);
+
+  // Clean undefined values
+  const cleanAiFeedback: Record<string, any> = {
+    generatedAt: aiFeedback.generatedAt || new Date().toISOString(),
+    summary: aiFeedback.summary || '',
+    pedagogicalFeedback: aiFeedback.pedagogicalFeedback || '',
+    strengths: Array.isArray(aiFeedback.strengths) ? aiFeedback.strengths : [],
+    tips: Array.isArray(aiFeedback.tips) ? aiFeedback.tips : [],
+  };
+
   await updateDoc(reportDoc, {
-    aiFeedback,
+    aiFeedback: cleanAiFeedback,
+    updatedAt: new Date().toISOString(),
   });
 }
 

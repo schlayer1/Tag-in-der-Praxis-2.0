@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { PraxisReport, INITIAL_REPORT } from './types/report';
 import { useAuth } from './context/AuthContext';
 import {
@@ -78,6 +78,18 @@ export function App() {
     } else {
       setIsTeacherDashboardOpen(false);
     }
+  }, [role]);
+
+  // Eingabemaske nach Schülerlogout automatisch komplett leeren
+  const prevRoleRef = useRef(role);
+  useEffect(() => {
+    if (prevRoleRef.current === 'student' && role === null) {
+      localStorage.removeItem(STORAGE_KEY);
+      setReport(INITIAL_REPORT);
+      setCurrentStep(1);
+      setStudentPastReports([]);
+    }
+    prevRoleRef.current = role;
   }, [role]);
 
   // Load student reports when logged in as student
@@ -316,6 +328,7 @@ export function App() {
                 onPrev={() => setCurrentStep(3)}
                 onExportPDF={handleExportAndSave}
                 onOpenReset={() => setIsResetModalOpen(true)}
+                onGoToStep={(step) => setCurrentStep(step)}
               />
             )}
           </AnimatePresence>

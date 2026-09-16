@@ -149,19 +149,14 @@ async function executeGeminiRequest(key: string, promptText: string): Promise<st
   throw lastError || new Error('Kein funktionierendes Gemini-Modell erreichbar.');
 }
 
-// 3. Pädagogisches Feedback für den Praktikumstag generieren
-export async function generateFeedbackWithGemini(report: PraxisReport): Promise<AiFeedback> {
-  const apiKey = getGeminiApiKey();
-  if (!apiKey) {
-    throw new Error('Kein Gemini API-Schlüssel gefunden. Bitte trage deinen API-Key in den Einstellungen ein.');
-  }
-
-  const prompt = `
-Du bist ein erfahrener, empathischer Pädagoge und Betreuungslehrer an der Staatlichen Regelschule »Heimbürgeschule« Kahla in Thüringen.
+// Helper zur Erstellung des Masterprompts für Einzelberichte (auch für externe KIs nutzbar)
+export function buildFeedbackPrompt(report: PraxisReport): string {
+  return `Du bist ein erfahrener, empathischer Pädagoge und Betreuungslehrer an der Staatlichen Regelschule »Heimbürgeschule« Kahla in Thüringen.
 Deine Aufgabe ist es, den eingereichten Praxisbericht eines Schülers auszuwerten und ein motivierendes, wertschätzendes und konstruktives Feedback für den Schüler zu formulieren.
 
 BERICHTSDATEN DES SCHÜLERS:
 - Name: ${report.studentName || 'Schüler/in'}
+- Klasse: ${report.studentClass || '—'}
 - Betrieb/Firma: ${report.companyName || 'Praktikumsbetrieb'}
 - Turnus: ${report.stage}
 - Datum: ${report.reportDate} (Arbeitszeit: ${report.startTime} bis ${report.endTime} Uhr)
@@ -188,8 +183,17 @@ Antworte bitte STRENG als valides JSON:
   "pedagogicalFeedback": "Das fertige, motivierende Feedback an den Schüler...",
   "strengths": ["Stärke 1", "Stärke 2"],
   "tips": ["Tipp für das nächste Mal"]
+}`;
 }
-`;
+
+// 3. Pädagogisches Feedback für den Praktikumstag generieren
+export async function generateFeedbackWithGemini(report: PraxisReport): Promise<AiFeedback> {
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) {
+    throw new Error('Kein Gemini API-Schlüssel gefunden. Bitte trage deinen API-Key in den Einstellungen ein.');
+  }
+
+  const prompt = buildFeedbackPrompt(report);
 
   try {
     const rawJson = await executeGeminiRequest(apiKey, prompt);
@@ -215,22 +219,12 @@ Antworte bitte STRENG als valides JSON:
   }
 }
 
-// 4. KI-Portfolio- und Entwicklungsbericht für Schüler (einzelner, ausgewählte oder alle Turnusse)
-export async function generatePortfolioWithGemini(
+// Helper zur Erstellung des Masterprompts für das Portfolio (auch für externe KIs nutzbar)
+export function buildPortfolioPrompt(
   studentName: string,
   studentClass: string,
   reports: PraxisReport[]
-): Promise<StudentPortfolioReport> {
-  const apiKey = getGeminiApiKey();
-  if (!apiKey) {
-    throw new Error('Kein Gemini API-Schlüssel gefunden. Bitte trage deinen API-Key in den Einstellungen ein.');
-  }
-
-  if (!reports || reports.length === 0) {
-    throw new Error('Keine Berichte für das Portfolio ausgewählt.');
-  }
-
-  // Sortiere Berichte chronologisch
+): string {
   const sortedReports = [...reports].sort((a, b) => {
     return (a.stage || '').localeCompare(b.stage || '') || (a.reportDate || '').localeCompare(b.reportDate || '');
   });
@@ -257,8 +251,7 @@ TURNUS ${idx + 1}: ${r.stage} (Schuljahr: ${r.schoolYear || 'unbekannt'}, Datum:
 `)
     .join('\n----------------------------------------\n');
 
-  const prompt = `
-Du bist ein erfahrener Fachlehrer für Berufsorientierung und pädagogischer Betreuer an der Staatlichen Regelschule »Heimbürgeschule« Kahla in Thüringen.
+  return `Du bist ein erfahrener Fachlehrer für Berufsorientierung und pädagogischer Betreuer an der Staatlichen Regelschule »Heimbürgeschule« Kahla in Thüringen.
 Deine Aufgabe ist es, auf Basis der vorliegenden Praktikumsberichte eines Schülers aus ausgewählten Turnussen einen ganzheitlichen, professionellen Portfolio- und Entwicklungsbericht ("Tag in der Praxis") zu verfassen.
 
 Der Bericht dient als offizieller Entwicklungsnachweis im Berufswahl-Portfolio des Schülers und richtet sich an den Schüler, die Erziehungsberechtigten sowie künftige Ausbildungsbetriebe.
@@ -283,18 +276,41 @@ LEITLINIEN FÜR DIE AUSWERTUNG:
 Antworte STRENG als valides JSON:
 {
   "title": "Portfolio-Entwicklungsbericht: Tag in der Praxis",
+  "summary": "1-2 prägnante Sätze als Gesamtfazit für den Schüler...",
   "periodCovered": "${stagesList}",
-  "summary": "1-3 prägnante Sätze als Management-Summary des Praxiswegs für die Kopfzeile...",
-  "practicalExperience": "Fließtext zu durchlaufenen Betrieben, Fachbereichen und Arbeitsaufgaben...",
+  "practicalExperience": "Fließtext über absolvierte Praktika und Tätigkeiten...",
   "competenciesAndStrengths": [
+    "Handwerkliches Geschick: Zeigte besondere Fingerfertigkeit bei...",
+    "Zuverlässigkeit: War stets pünktlich und erledigte Aufgaben...",
     "Sorgfalt & Genauigkeit: Bewies hohe Präzision bei...",
     "Technisches Verständnis: Schnelles Erfassen von..."
   ],
   "developmentAndReflection": "Fließtext über den Lernzuwachs, Reifegrad und die Reflexionskompetenz...",
   "careerRecommendations": "Konkrete Empfehlungen für Berufsfelder und nächste Schritte...",
   "overallConclusion": "Persönliches, wertschätzendes Abschlusswort des betreuenden Fachlehrers..."
+}`;
 }
-`;
+
+// 4. KI-Portfolio- und Entwicklungsbericht für Schüler (einzelner, ausgewählte oder alle Turnusse)
+export async function generatePortfolioWithGemini(
+  studentName: string,
+  studentClass: string,
+  reports: PraxisReport[]
+): Promise<StudentPortfolioReport> {
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) {
+    throw new Error('Kein Gemini API-Schlüssel gefunden. Bitte trage deinen API-Key in den Einstellungen ein.');
+  }
+
+  if (!reports || reports.length === 0) {
+    throw new Error('Keine Berichte für das Portfolio ausgewählt.');
+  }
+
+  const prompt = buildPortfolioPrompt(studentName, studentClass, reports);
+
+  const stagesList = reports.map((r) => r.stage || 'Turnus').join(', ');
+  const companiesList = Array.from(new Set(reports.map((r) => r.companyName).filter(Boolean)));
+  const schoolYearsList = Array.from(new Set(reports.map((r) => r.schoolYear).filter(Boolean))).join(', ');
 
   try {
     const rawJson = await executeGeminiRequest(apiKey, prompt);

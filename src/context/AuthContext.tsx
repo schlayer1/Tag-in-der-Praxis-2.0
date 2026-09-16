@@ -102,6 +102,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('tip_auth_role');
     localStorage.removeItem('tip_auth_student_code');
     localStorage.removeItem('tip_auth_student_name');
+    localStorage.removeItem('praktikum_reflexion_kahla_final');
   };
 
   return (

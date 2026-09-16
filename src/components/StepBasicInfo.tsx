@@ -12,6 +12,27 @@ interface StepBasicInfoProps {
 
 const COMMON_CLASSES = ['8a', '8b', '8c', '9a', '9b', '9c'];
 
+export const TURNUS_COMPANIES_KEY = 'tip_turnus_companies';
+
+export const getStoredTurnusCompanies = (): Record<string, string> => {
+  try {
+    const raw = localStorage.getItem(TURNUS_COMPANIES_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+};
+
+export const saveTurnusCompany = (stage: string, company: string) => {
+  try {
+    const map = getStoredTurnusCompanies();
+    map[stage] = company;
+    localStorage.setItem(TURNUS_COMPANIES_KEY, JSON.stringify(map));
+  } catch (e) {
+    console.error('Error saving turnus company', e);
+  }
+};
+
 export const StepBasicInfo: React.FC<StepBasicInfoProps> = ({
   report,
   onChange,
@@ -21,6 +42,38 @@ export const StepBasicInfo: React.FC<StepBasicInfoProps> = ({
   const initialParts = (report.studentName || '').trim().split(/\s+/);
   const [firstName, setFirstName] = React.useState(initialParts.length > 0 ? initialParts[0] : '');
   const [lastName, setLastName] = React.useState(initialParts.length > 1 ? initialParts.slice(1).join(' ') : '');
+
+  // Unternehmen für den aktuellen Turnus vorbefüllen, falls im Bericht noch leer
+  React.useEffect(() => {
+    if (!report.companyName && report.stage) {
+      const stored = getStoredTurnusCompanies();
+      if (stored[report.stage]) {
+        onChange('companyName', stored[report.stage]);
+      }
+    }
+  }, [report.stage]);
+
+  const handleCompanyChange = (val: string) => {
+    onChange('companyName', val);
+    saveTurnusCompany(report.stage, val);
+  };
+
+  const handleStageChange = (newStage: string) => {
+    if (newStage === report.stage) return;
+
+    const stored = getStoredTurnusCompanies();
+    const targetCompany = stored[newStage] || '';
+
+    if (report.companyName && report.companyName !== targetCompany) {
+      const confirmed = window.confirm(
+        `Möchtest du zu ${newStage} wechseln? Das Feld 'Firma / Betrieb' wird für diesen Turnus angepasst bzw. geleert.`
+      );
+      if (!confirmed) return;
+    }
+
+    onChange('stage', newStage);
+    onChange('companyName', targetCompany);
+  };
 
   const updateNames = (newFirst: string, newLast: string) => {
     setFirstName(newFirst);
@@ -132,7 +185,7 @@ export const StepBasicInfo: React.FC<StepBasicInfoProps> = ({
               type="text"
               id="company_name"
               value={report.companyName}
-              onChange={(e) => onChange('companyName', e.target.value)}
+              onChange={(e) => handleCompanyChange(e.target.value)}
               className="w-full bg-white border border-slate-300 rounded-lg px-3.5 py-2.5 text-base sm:text-sm min-h-[44px] focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition"
               placeholder="Name des Unternehmens"
               required
@@ -148,7 +201,7 @@ export const StepBasicInfo: React.FC<StepBasicInfoProps> = ({
             <select
               id="stage_select"
               value={report.stage}
-              onChange={(e) => onChange('stage', e.target.value)}
+              onChange={(e) => handleStageChange(e.target.value)}
               className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2.5 text-base sm:text-sm min-h-[44px] font-medium text-slate-700 focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition"
             >
               <option value="Turnus 1">Turnus 1</option>

@@ -19,6 +19,8 @@ import {
 import {
   generateFeedbackWithGemini,
   generatePortfolioWithGemini,
+  buildFeedbackPrompt,
+  buildPortfolioPrompt,
   getGeminiApiKey,
   saveGeminiApiKey
 } from '../services/geminiService';
@@ -29,6 +31,7 @@ import {
   GraduationCap,
   Search,
   FileDown,
+  FileText,
   Sparkles,
   Eye,
   Check,
@@ -231,6 +234,10 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
   const [isKeyModalOpen, setIsKeyModalOpen] = useState<boolean>(false);
   const [inputKey, setInputKey] = useState<string>(getGeminiApiKey());
 
+  // Masterprompt Export Modal
+  const [promptModal, setPromptModal] = useState<{ title: string; prompt: string } | null>(null);
+  const [promptCopied, setPromptCopied] = useState<boolean>(false);
+
   // Archive / Backup Modal
   const [isArchiveModalOpen, setIsArchiveModalOpen] = useState<boolean>(false);
   const [isArchiving, setIsArchiving] = useState<boolean>(false);
@@ -305,7 +312,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
   const handleGenerateAi = async (rep: PraxisReport) => {
     setAiReport(rep);
     setAiResult(null);
-    setEditableFeedback('');
+    setEditableFeedback(rep.teacherFeedback?.comment || '');
     setAiError(null);
     setSavedSuccess(false);
     setCopied(false);
@@ -328,6 +335,25 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
     }
   };
 
+  // Open feedback dialog (to view existing feedback, write manual feedback with snippets, or trigger AI)
+  const handleOpenFeedback = (rep: PraxisReport, forceRegenerate = false) => {
+    setAiReport(rep);
+    setAiResult(rep.aiFeedback || null);
+    setEditableFeedback(rep.teacherFeedback?.comment || rep.aiFeedback?.pedagogicalFeedback || '');
+    setAiError(null);
+    setSavedSuccess(false);
+    setCopied(false);
+
+    if (forceRegenerate || (!rep.teacherFeedback?.comment && !rep.aiFeedback)) {
+      const key = getGeminiApiKey();
+      if (!key) {
+        // Teacher can still view/write manual feedback or open key modal
+        return;
+      }
+      handleGenerateAi(rep);
+    }
+  };
+
   const handleCopy = () => {
     if (!editableFeedback) return;
     navigator.clipboard.writeText(editableFeedback);
@@ -343,12 +369,55 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
       if (aiResult) {
         await saveAiFeedback(aiReport.id, aiResult);
       }
+
+      // Sofortige lokale Aktualisierung des Dashboard-States für direktes visuelles Feedback
+      const updatedTeacherFeedback = {
+        comment: editableFeedback.trim(),
+        reviewedAt: new Date().toISOString(),
+        reviewedBy: 'Lehrkraft',
+        isPublished: true,
+      };
+
+      setReports((prev) =>
+        prev.map((r) =>
+          r.id === aiReport.id
+            ? {
+                ...r,
+                teacherFeedback: updatedTeacherFeedback,
+                ...(aiResult ? { aiFeedback: aiResult } : {}),
+              }
+            : r
+        )
+      );
+
+      if (activeReport && activeReport.id === aiReport.id) {
+        setActiveReport((prev) =>
+          prev
+            ? {
+                ...prev,
+                teacherFeedback: updatedTeacherFeedback,
+                ...(aiResult ? { aiFeedback: aiResult } : {}),
+              }
+            : null
+        );
+      }
+
+      setAiReport((prev) =>
+        prev
+          ? {
+              ...prev,
+              teacherFeedback: updatedTeacherFeedback,
+              ...(aiResult ? { aiFeedback: aiResult } : {}),
+            }
+          : null
+      );
+
       setSavedSuccess(true);
       await loadReports();
       setTimeout(() => setSavedSuccess(false), 3000);
-    } catch (err) {
-      console.error(err);
-      alert('Fehler beim Speichern des Feedbacks.');
+    } catch (err: any) {
+      console.error('Fehler beim Speichern des Feedbacks:', err);
+      alert('Fehler beim Speichern des Feedbacks: ' + (err?.message || 'Bitte prüfen'));
     } finally {
       setIsAiLoading(false);
     }
@@ -1270,12 +1339,27 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
                   onClick={() => {
                     const rep = activeReport;
                     setActiveReport(null);
-                    handleGenerateAi(rep);
+                    handleOpenFeedback(rep);
                   }}
                   className="inline-flex items-center gap-1.5 bg-gradient-to-r from-school-blue to-school-cyan hover:from-school-darkblue hover:to-school-blue text-white text-xs font-bold py-2 px-3 sm:px-4 rounded-lg shadow transition"
                 >
                   <Sparkles className="w-4 h-4 text-school-orange" />
                   <span>Feedback / KI bearbeiten</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    const prompt = buildFeedbackPrompt(activeReport);
+                    setPromptModal({
+                      title: `Masterprompt für Bericht von ${activeReport.studentName}`,
+                      prompt,
+                    });
+                  }}
+                  className="inline-flex items-center gap-1.5 bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 text-xs font-semibold py-2 px-3 sm:px-4 rounded-lg transition"
+                  title="Masterprompt für externe KIs (ChatGPT, Claude etc.) kopieren"
+                >
+                  <Copy className="w-4 h-4" />
+                  <span>Masterprompt</span>
                 </button>
 
                 {(() => {
@@ -1352,22 +1436,29 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
                     Modell wird dynamisch erkannt & pädagogisches Feedback generiert
                   </p>
                 </div>
-              ) : aiError ? (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 space-y-2">
-                  <div className="font-bold flex items-center gap-1.5">
-                    <AlertCircle className="w-4 h-4 text-red-600" />
-                    <span>Auswertung fehlgeschlagen</span>
-                  </div>
-                  <p>{aiError}</p>
-                  <button
-                    onClick={() => setIsKeyModalOpen(true)}
-                    className="text-school-blue underline font-bold mt-1 block"
-                  >
-                    Gemini API-Key überprüfen
-                  </button>
-                </div>
               ) : (
                 <>
+                  {aiError && (
+                    <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 space-y-1.5">
+                      <div className="font-bold flex items-center justify-between text-amber-900">
+                        <div className="flex items-center gap-1.5">
+                          <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                          <span>KI-Feedback nicht möglich ({aiError})</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setIsKeyModalOpen(true)}
+                          className="text-school-blue underline font-semibold text-[11px]"
+                        >
+                          Gemini Key prüfen
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-slate-600">
+                        Kein Problem: Du kannst das Feedback für den Schüler unten jederzeit manuell formulieren, die vorgefertigten Textbausteine anklicken und freigeben.
+                      </p>
+                    </div>
+                  )}
+
                   {aiResult?.summary && (
                     <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-xs text-school-darkblue">
                       <span className="font-bold block mb-0.5">Kurzfazit für die Lehrkraft:</span>
@@ -1404,7 +1495,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
                       value={editableFeedback}
                       onChange={(e) => setEditableFeedback(e.target.value)}
                       className="w-full border border-slate-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-school-blue focus:outline-none leading-relaxed"
-                      placeholder="Hier erscheint das generierte Feedback..."
+                      placeholder="Hier pädagogisches Feedback eingeben oder vorgefertigte Textbausteine unten nutzen..."
                     />
 
                     {/* Quick Snippets for Teacher Feedback */}
@@ -1431,22 +1522,39 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
             </div>
 
             {/* Actions */}
-            <div className="border-t pt-3 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => handleGenerateAi(aiReport)}
-                disabled={isAiLoading}
-                className="text-xs font-bold text-slate-600 hover:text-slate-900"
-              >
-                Neu generieren
-              </button>
+            <div className="border-t pt-3 flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleGenerateAi(aiReport)}
+                  disabled={isAiLoading}
+                  className="text-xs font-bold text-slate-700 hover:text-slate-900 border border-slate-200 bg-slate-50 hover:bg-slate-100 py-2 px-3 rounded-lg transition"
+                >
+                  Neu generieren
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const prompt = buildFeedbackPrompt(aiReport);
+                    setPromptModal({
+                      title: `Masterprompt für Bericht von ${aiReport.studentName}`,
+                      prompt,
+                    });
+                  }}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 py-2 px-3 rounded-lg transition"
+                  title="Masterprompt für externe KIs (ChatGPT, Claude etc.) anzeigen & kopieren"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Masterprompt</span>
+                </button>
+              </div>
 
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={handleSaveFeedback}
-                  disabled={isAiLoading || !editableFeedback}
-                  className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs shadow transition disabled:opacity-50"
+                  disabled={isAiLoading || !editableFeedback.trim()}
+                  className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs shadow transition disabled:opacity-50 active:scale-[0.98]"
                 >
                   <Save className="w-4 h-4" />
                   <span>Im Schülerkonto freigeben</span>
@@ -1625,6 +1733,81 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
         </div>
       )}
 
+      {/* Masterprompt Modal (für externe KI wie ChatGPT, Claude etc.) */}
+      {promptModal && (
+        <div className="fixed inset-0 z-80 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 border border-slate-200 space-y-4 max-h-[88vh] flex flex-col">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center flex-shrink-0">
+                  <FileText className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-slate-900">
+                    Masterprompt kopieren
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {promptModal.title}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setPromptModal(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Kopiere diesen Prompt inklusive aller Schülerdaten und pädagogischen Richtlinien, um ihn direkt in externe KIs (ChatGPT, Claude, MS Copilot etc.) einzufügen:
+            </p>
+
+            <div className="flex-1 overflow-y-auto">
+              <textarea
+                readOnly
+                rows={12}
+                value={promptModal.prompt}
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs font-mono leading-relaxed text-slate-800 select-all focus:outline-none"
+              />
+            </div>
+
+            <div className="border-t pt-3 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setPromptModal(null)}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition"
+              >
+                Schließen
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(promptModal.prompt);
+                  setPromptCopied(true);
+                  setTimeout(() => setPromptCopied(false), 2500);
+                }}
+                className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs shadow transition active:scale-[0.98]"
+              >
+                {promptCopied ? (
+                  <>
+                    <Check className="w-4 h-4" />
+                    <span>Prompt in Zwischenablage kopiert!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4" />
+                    <span>In Zwischenablage kopieren</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* KI-Portfolio & Entwicklungsbericht Modal */}
       {portfolioModalOpen && portfolioStudent && (
         <div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
@@ -1740,8 +1923,34 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
                   })}
                 </div>
 
-                {/* Generierungs-Button */}
-                <div className="pt-2 flex justify-end">
+                {/* Generierungs-Button & Masterprompt */}
+                <div className="pt-2 flex items-center justify-between flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const selectedReports = portfolioStudent.reports.filter((r) => r.id && selectedTurnusIds.includes(r.id));
+                      if (selectedReports.length === 0) {
+                        alert('Bitte markiere mindestens einen Turnus für den Masterprompt.');
+                        return;
+                      }
+                      const prompt = buildPortfolioPrompt(
+                        portfolioStudent.studentName,
+                        portfolioStudent.studentClass,
+                        selectedReports
+                      );
+                      setPromptModal({
+                        title: `Masterprompt Portfolio für ${portfolioStudent.studentName} (${portfolioStudent.studentClass})`,
+                        prompt,
+                      });
+                    }}
+                    disabled={selectedTurnusIds.length === 0}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 py-2.5 px-3.5 rounded-xl transition disabled:opacity-50"
+                    title="Portfolio-Prompt für externe KI kopieren"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Masterprompt kopieren</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={handleGeneratePortfolio}
@@ -2309,11 +2518,17 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
                   <span>Archiv</span>
                 </span>
               )}
-              <span
-                className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border inline-flex items-center gap-1 ${
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleOpenFeedback(rep);
+                }}
+                title={hasFeedback ? "Feedback ansehen & bearbeiten" : "Feedback erfassen"}
+                className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border inline-flex items-center gap-1 cursor-pointer transition hover:scale-105 active:scale-95 ${
                   hasFeedback
-                    ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20 shadow-xs'
-                    : 'bg-amber-500/10 text-amber-700 border-amber-500/20 shadow-xs'
+                    ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20 shadow-xs hover:bg-emerald-500/20'
+                    : 'bg-amber-500/10 text-amber-700 border-amber-500/20 shadow-xs hover:bg-amber-500/20'
                 }`}
               >
                 {hasFeedback ? (
@@ -2324,7 +2539,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
                 ) : (
                   'Offen'
                 )}
-              </span>
+              </button>
             </div>
           </div>
 
@@ -2367,11 +2582,12 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
           </button>
 
           <button
-            onClick={() => handleGenerateAi(rep)}
+            onClick={() => handleOpenFeedback(rep, !rep.teacherFeedback?.comment)}
             className="flex-1 inline-flex items-center justify-center gap-1 bg-gradient-to-r from-school-blue to-school-cyan hover:from-school-darkblue hover:to-school-blue text-white font-bold py-2 px-3 rounded-lg text-xs shadow-xs transition-all duration-150 active:scale-[0.98]"
+            title={hasFeedback ? "Feedback einsehen / anpassen" : "Feedback mit KI oder manuell erfassen"}
           >
             <Sparkles className="w-3.5 h-3.5 text-school-orange" />
-            <span>KI-Feedback</span>
+            <span>{hasFeedback ? 'Feedback' : 'KI-Feedback'}</span>
           </button>
 
           {(() => {

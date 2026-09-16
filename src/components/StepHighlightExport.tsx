@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { PraxisReport } from '../types/report';
-import { Sparkles, FileDown, RotateCcw, ArrowLeft, CheckCircle2, Loader2, Lightbulb } from 'lucide-react';
+import { Sparkles, FileDown, RotateCcw, ArrowLeft, ArrowRight, CheckCircle2, Loader2, Lightbulb, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface StepHighlightExportProps {
@@ -9,6 +9,7 @@ interface StepHighlightExportProps {
   onPrev: () => void;
   onExportPDF: () => Promise<void>;
   onOpenReset: () => void;
+  onGoToStep?: (step: number) => void;
 }
 
 export const StepHighlightExport: React.FC<StepHighlightExportProps> = ({
@@ -17,11 +18,45 @@ export const StepHighlightExport: React.FC<StepHighlightExportProps> = ({
   onPrev,
   onExportPDF,
   onOpenReset,
+  onGoToStep,
 }) => {
   const [isExporting, setIsExporting] = useState(false);
   const [exportSuccess, setExportSuccess] = useState(false);
 
+  // Pflichtfeld-Validierung aller 4 Schritte
+  const missingFields: { step: number; label: string }[] = [];
+
+  // Schritt 1
+  if (!report.studentName?.trim()) missingFields.push({ step: 1, label: 'Vor- und Nachname' });
+  if (!report.studentClass?.trim()) missingFields.push({ step: 1, label: 'Klasse' });
+  if (!report.companyName?.trim()) missingFields.push({ step: 1, label: 'Firma / Betrieb' });
+  if (!report.stage?.trim()) missingFields.push({ step: 1, label: 'Turnus' });
+  if (!report.reportDate?.trim()) missingFields.push({ step: 1, label: 'Datum des Praktikumstages' });
+  if (!report.startTime?.trim()) missingFields.push({ step: 1, label: 'Arbeitsbeginn' });
+  if (!report.endTime?.trim()) missingFields.push({ step: 1, label: 'Arbeitsende' });
+
+  // Schritt 2
+  if (!report.taskDescription?.trim()) missingFields.push({ step: 2, label: 'Tätigkeitsbeschreibung' });
+  if (!report.dailySchedule?.trim()) missingFields.push({ step: 2, label: 'Tagesablauf' });
+
+  // Schritt 3
+  if (!report.funRating) missingFields.push({ step: 3, label: 'Selbsteinschätzung: Spaß an der Arbeit' });
+  if (!report.boredRating) missingFields.push({ step: 3, label: 'Selbsteinschätzung: Langeweile' });
+  if (!report.learnedRating) missingFields.push({ step: 3, label: 'Selbsteinschätzung: Neues gelernt' });
+  if (!report.overwhelmedRating) missingFields.push({ step: 3, label: 'Selbsteinschätzung: Überforderung' });
+  if (!report.careerRating) missingFields.push({ step: 3, label: 'Selbsteinschätzung: Berufliches Interesse' });
+
+  // Schritt 4
+  if (!report.specialMemory?.trim()) missingFields.push({ step: 4, label: 'Das bleibt mir in Erinnerung' });
+
+  const hasIncompleteFields = missingFields.length > 0;
+
   const handleExport = async () => {
+    if (hasIncompleteFields) {
+      alert('Bitte fülle zuerst alle erforderlichen Felder aus.');
+      return;
+    }
+
     setIsExporting(true);
     try {
       await onExportPDF();
@@ -49,7 +84,7 @@ export const StepHighlightExport: React.FC<StepHighlightExportProps> = ({
           <span className="w-6 h-6 rounded-full bg-school-cyan text-white text-xs flex items-center justify-center font-bold flex-shrink-0">
             4
           </span>
-          <span className="flex-1">Das bleibt mir von diesem Tag besonders in Erinnerung:</span>
+          <span className="flex-1">Das bleibt mir von diesem Tag besonders in Erinnerung: <span className="text-school-orange">*</span></span>
         </label>
         <textarea
           id="special_memory"
@@ -58,6 +93,7 @@ export const StepHighlightExport: React.FC<StepHighlightExportProps> = ({
           onChange={(e) => onChange('specialMemory', e.target.value)}
           className="w-full border border-slate-300 rounded-lg p-3.5 text-base sm:text-sm focus:ring-2 focus:ring-school-cyan focus:border-school-cyan focus:outline-none transition leading-relaxed"
           placeholder="Ein besonderes Erlebnis, ein tolles Teamgespräch, eine gelungene Arbeit..."
+          required
         />
       </div>
 
@@ -87,14 +123,44 @@ export const StepHighlightExport: React.FC<StepHighlightExportProps> = ({
         </div>
       </div>
 
+      {/* Fehlende Pflichtfelder Warnung */}
+      {hasIncompleteFields && (
+        <div className="p-4 bg-amber-50 border border-amber-300 rounded-xl space-y-3">
+          <div className="flex items-center gap-2 text-amber-900 font-bold text-sm">
+            <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+            <span>Bericht unvollständig ({missingFields.length} offene Pflichtfelder)</span>
+          </div>
+          <p className="text-xs text-amber-800 leading-relaxed">
+            Bitte fülle vor dem PDF-Export alle Pflichtfelder aus. Klicke auf ein Feld, um direkt dorthin zu springen:
+          </p>
+          <div className="flex flex-wrap gap-2 pt-1">
+            {missingFields.map((item, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => onGoToStep?.(item.step)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-xs font-semibold shadow-xs transition active:scale-[0.98]"
+              >
+                <span>{item.label}</span>
+                <span className="text-[10px] text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded font-bold">
+                  Schritt {item.step}
+                </span>
+                <ArrowRight className="w-3 h-3 text-amber-700" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Action Buttons */}
       <div className="pt-2 no-print space-y-4">
         <div className="flex flex-col sm:flex-row gap-3">
           <button
             type="button"
             onClick={handleExport}
-            disabled={isExporting}
-            className="flex-1 bg-gradient-to-r from-school-blue via-school-cyan to-school-teal hover:from-school-darkblue hover:to-school-blue text-white font-bold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 flex justify-center items-center gap-2 text-sm sm:text-base disabled:opacity-60 active:scale-[0.98]"
+            disabled={isExporting || hasIncompleteFields}
+            title={hasIncompleteFields ? 'Bitte zuerst alle Pflichtfelder ausfüllen' : 'PDF erstellen & an Schule übermitteln'}
+            className="flex-1 bg-gradient-to-r from-school-blue via-school-cyan to-school-teal hover:from-school-darkblue hover:to-school-blue text-white font-bold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 flex justify-center items-center gap-2 text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
           >
             {isExporting ? (
               <>
@@ -105,6 +171,11 @@ export const StepHighlightExport: React.FC<StepHighlightExportProps> = ({
               <>
                 <CheckCircle2 className="w-5 h-5 text-emerald-300" />
                 <span>PDF erfolgreich heruntergeladen!</span>
+              </>
+            ) : hasIncompleteFields ? (
+              <>
+                <AlertCircle className="w-5 h-5 text-amber-200" />
+                <span>Pflichtfelder unvollständig ({missingFields.length} offen)</span>
               </>
             ) : (
               <>
