@@ -17,7 +17,8 @@ export const TURNUS_COMPANIES_KEY = 'tip_turnus_companies';
 export const getStoredTurnusCompanies = (): Record<string, string> => {
   try {
     const raw = localStorage.getItem(TURNUS_COMPANIES_KEY);
-    return raw ? JSON.parse(raw) : {};
+    const parsed = raw ? JSON.parse(raw) : {};
+    return (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {};
   } catch {
     return {};
   }

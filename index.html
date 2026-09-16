@@ -17,6 +17,39 @@
     <meta name="apple-mobile-web-app-title" content="Praxistag" />
   </head>
   <body class="bg-[#f0f4f9] text-[#091d2e] font-sans antialiased min-h-screen">
+    <!-- Self-healing: Falls ein alter Service Worker / veralteter Cache ein fehlendes Skript lädt, Cache leeren und frisch laden -->
+    <script>
+      (function() {
+        window.addEventListener('error', function(event) {
+          var msg = (event && event.message) ? String(event.message) : '';
+          var isScriptTag = (event && event.target && event.target.tagName === 'SCRIPT');
+          var isMimeOrSyntax = msg.indexOf('Unexpected token') !== -1 ||
+                               msg.indexOf('MIME type') !== -1 ||
+                               msg.indexOf('Failed to fetch dynamically imported module') !== -1 ||
+                               msg.indexOf('Loading chunk') !== -1;
+
+          if ((isScriptTag || isMimeOrSyntax) && !sessionStorage.getItem('tip_auto_reloaded')) {
+            sessionStorage.setItem('tip_auto_reloaded', '1');
+            if ('caches' in window) {
+              caches.keys().then(function(keys) {
+                return Promise.all(keys.map(function(k) { return caches.delete(k); }));
+              }).finally(function() {
+                if ('serviceWorker' in navigator) {
+                  navigator.serviceWorker.getRegistrations().then(function(regs) {
+                    regs.forEach(function(r) { r.unregister(); });
+                    window.location.reload();
+                  });
+                } else {
+                  window.location.reload();
+                }
+              });
+            } else {
+              window.location.reload();
+            }
+          }
+        }, true);
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
