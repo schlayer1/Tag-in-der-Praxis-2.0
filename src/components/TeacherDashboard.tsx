@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { PraxisReport, AiFeedback, StudentPortfolioReport } from '../types/report';
 import {
   fetchAllReportsForTeacher,
@@ -58,7 +58,10 @@ import {
   Award,
   CheckSquare,
   Square,
-  Clock
+  Clock,
+  User,
+  ArrowUpDown,
+  Filter
 } from 'lucide-react';
 
 interface TeacherDashboardProps {
@@ -66,6 +69,14 @@ interface TeacherDashboardProps {
 }
 
 type GroupMode = 'class' | 'stage' | 'flat';
+
+export type SortOption =
+  | 'submission-desc'
+  | 'submission-asc'
+  | 'report-date-desc'
+  | 'report-date-asc'
+  | 'name-asc'
+  | 'name-desc';
 
 const AVAILABLE_STAGES = ['Turnus 1', 'Turnus 2', 'Turnus 3', 'Turnus 4'];
 
@@ -121,6 +132,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'reviewed'>('all');
   const [archiveFilter, setArchiveFilter] = useState<'active' | 'archived' | 'all'>('active');
   const [groupMode, setGroupMode] = useState<GroupMode>('class');
+  const [studentFilter, setStudentFilter] = useState<string>('all');
+  const [sortOption, setSortOption] = useState<SortOption>('submission-desc');
 
   // Delete modal state
   const [reportToDelete, setReportToDelete] = useState<PraxisReport | null>(null);
@@ -266,6 +279,112 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
   };
 
 
+  // Available students scoped to the current school year and class filter
+  const availableStudents = useMemo(() => {
+    const map = new Map<string, { key: string; name: string; code: string; studentClass: string }>();
+
+    reports.forEach((rep) => {
+      const repYear = normalizeSchoolYear(rep.schoolYear || calculateSchoolYear(rep.reportDate));
+      if (yearFilter !== 'Alle' && repYear !== yearFilter) return;
+      if (classFilter !== 'Alle' && rep.studentClass !== classFilter) return;
+
+      const key = getStudentKey(rep.studentName, rep.studentCode);
+      if (!key) return;
+
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          name: rep.studentName || 'Unbenannt',
+          code: rep.studentCode || '',
+          studentClass: rep.studentClass || '',
+        });
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  }, [reports, yearFilter, classFilter]);
+
+  // Reset student filter if the chosen student is no longer part of the newly filtered class
+  useEffect(() => {
+    if (studentFilter !== 'all') {
+      const stillAvailable = availableStudents.some((s) => s.key === studentFilter);
+      if (!stillAvailable) {
+        setStudentFilter('all');
+      }
+    }
+  }, [availableStudents, studentFilter]);
+
+  // Information about currently filtered student
+  const activeFilteredStudent = useMemo(() => {
+    if (studentFilter === 'all') return null;
+    const found = availableStudents.find((s) => s.key === studentFilter);
+    if (found) return found;
+
+    const rep = reports.find((r) => getStudentKey(r.studentName, r.studentCode) === studentFilter);
+    if (rep) {
+      return {
+        key: studentFilter,
+        name: rep.studentName || 'Unbenannt',
+        code: rep.studentCode || '',
+        studentClass: rep.studentClass || '',
+      };
+    }
+    return null;
+  }, [studentFilter, availableStudents, reports]);
+
+  // Submission & report date helper functions for robust sorting
+  const getSubmissionTime = (rep: PraxisReport): number => {
+    const str = rep.createdAt || rep.updatedAt || rep.reportDate;
+    if (!str) return 0;
+    const t = new Date(str).getTime();
+    return isNaN(t) ? 0 : t;
+  };
+
+  const getReportDateTime = (rep: PraxisReport): number => {
+    if (!rep.reportDate) return 0;
+    const t = new Date(rep.reportDate).getTime();
+    return isNaN(t) ? 0 : t;
+  };
+
+  const sortReports = (list: PraxisReport[], option: SortOption): PraxisReport[] => {
+    return [...list].sort((a, b) => {
+      switch (option) {
+        case 'submission-desc': {
+          const diff = getSubmissionTime(b) - getSubmissionTime(a);
+          if (diff !== 0) return diff;
+          return (a.studentName || '').localeCompare(b.studentName || '', 'de');
+        }
+        case 'submission-asc': {
+          const diff = getSubmissionTime(a) - getSubmissionTime(b);
+          if (diff !== 0) return diff;
+          return (a.studentName || '').localeCompare(b.studentName || '', 'de');
+        }
+        case 'report-date-desc': {
+          const diff = getReportDateTime(b) - getReportDateTime(a);
+          if (diff !== 0) return diff;
+          return getSubmissionTime(b) - getSubmissionTime(a);
+        }
+        case 'report-date-asc': {
+          const diff = getReportDateTime(a) - getReportDateTime(b);
+          if (diff !== 0) return diff;
+          return getSubmissionTime(a) - getSubmissionTime(b);
+        }
+        case 'name-asc': {
+          const diff = (a.studentName || '').localeCompare(b.studentName || '', 'de');
+          if (diff !== 0) return diff;
+          return getSubmissionTime(b) - getSubmissionTime(a);
+        }
+        case 'name-desc': {
+          const diff = (b.studentName || '').localeCompare(a.studentName || '', 'de');
+          if (diff !== 0) return diff;
+          return getSubmissionTime(b) - getSubmissionTime(a);
+        }
+        default:
+          return 0;
+      }
+    });
+  };
+
   // Filtered reports
   const filteredReports = reports.filter((rep) => {
     const matchesSearch =
@@ -279,6 +398,9 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
     const matchesClass = classFilter === 'Alle' || rep.studentClass === classFilter;
     const matchesStage = stageFilter === 'Alle' || rep.stage === stageFilter;
 
+    const repStudentKey = getStudentKey(rep.studentName, rep.studentCode);
+    const matchesStudent = studentFilter === 'all' || repStudentKey === studentFilter;
+
     const hasFeedback = !!rep.teacherFeedback?.comment;
     const matchesStatus =
       statusFilter === 'all' ||
@@ -291,14 +413,16 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
       (archiveFilter === 'archived' && isArchived) ||
       (archiveFilter === 'active' && !isArchived);
 
-    return matchesSearch && matchesYear && matchesClass && matchesStage && matchesStatus && matchesArchive;
+    return matchesSearch && matchesYear && matchesClass && matchesStage && matchesStudent && matchesStatus && matchesArchive;
   });
+
+  const sortedFilteredReports = sortReports(filteredReports, sortOption);
 
   // Grouped records
   const groupedByClass: Record<string, PraxisReport[]> = {};
   const groupedByStage: Record<string, PraxisReport[]> = {};
 
-  filteredReports.forEach((rep) => {
+  sortedFilteredReports.forEach((rep) => {
     const cls = rep.studentClass || 'Keine Klasse';
     const stg = rep.stage || 'Kein Turnus';
 
@@ -918,6 +1042,41 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
                 </select>
               </div>
 
+              {/* Filter Schüler */}
+              <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 min-h-[44px] rounded-lg border border-slate-200">
+                <User className="w-3.5 h-3.5 text-school-blue" />
+                <span className="text-xs font-semibold text-slate-500">Schüler:</span>
+                <select
+                  value={studentFilter}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setStudentFilter(val);
+                    if (val !== 'all') {
+                      setSortOption('submission-asc');
+                    }
+                  }}
+                  className="bg-transparent text-base sm:text-xs font-bold text-slate-800 focus:outline-none cursor-pointer max-w-[150px] sm:max-w-[170px] truncate"
+                  title="Abgaben auf einen einzelnen Schüler eingrenzen"
+                >
+                  <option value="all">Alle Schüler ({availableStudents.length})</option>
+                  {availableStudents.map((s) => (
+                    <option key={s.key} value={s.key}>
+                      {s.name} {s.code ? `(${s.code})` : ''}
+                    </option>
+                  ))}
+                </select>
+                {studentFilter !== 'all' && (
+                  <button
+                    type="button"
+                    onClick={() => setStudentFilter('all')}
+                    title="Schülerfilter aufheben"
+                    className="text-slate-400 hover:text-slate-600 p-0.5 rounded transition"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
               {/* Filter Turnus */}
               <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 min-h-[44px] rounded-lg border border-slate-200">
                 <Layers className="w-3.5 h-3.5 text-school-blue" />
@@ -933,6 +1092,25 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
                       {s}
                     </option>
                   ))}
+                </select>
+              </div>
+
+              {/* Sortierung */}
+              <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 min-h-[44px] rounded-lg border border-slate-200">
+                <ArrowUpDown className="w-3.5 h-3.5 text-school-blue" />
+                <span className="text-xs font-semibold text-slate-500">Sortierung:</span>
+                <select
+                  value={sortOption}
+                  onChange={(e) => setSortOption(e.target.value as SortOption)}
+                  className="bg-transparent text-base sm:text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
+                  title="Sortierreihenfolge der Abgaben festlegen"
+                >
+                  <option value="submission-desc">Einreichung (Neu ➔ Alt)</option>
+                  <option value="submission-asc">Einreichung (Alt ➔ Neu)</option>
+                  <option value="report-date-desc">Praktikum (Neu ➔ Alt)</option>
+                  <option value="report-date-asc">Praktikum (Alt ➔ Neu)</option>
+                  <option value="name-asc">Schülername (A–Z)</option>
+                  <option value="name-desc">Schülername (Z–A)</option>
                 </select>
               </div>
 
@@ -1022,13 +1200,13 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
           </div>
 
           {/* Quick Selection Toolbar for Filtered Reports */}
-          {filteredReports.length > 0 && (
+          {sortedFilteredReports.length > 0 && (
             <div className="pt-2 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2 text-xs">
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => {
-                    if (selectedReportIds.length === filteredReports.length) {
+                    if (selectedReportIds.length === sortedFilteredReports.length) {
                       handleClearSelection();
                     } else {
                       handleSelectAllFiltered();
@@ -1036,7 +1214,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
                   }}
                   className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-school-blue font-bold transition"
                 >
-                  {selectedReportIds.length === filteredReports.length && filteredReports.length > 0 ? (
+                  {selectedReportIds.length === sortedFilteredReports.length && sortedFilteredReports.length > 0 ? (
                     <>
                       <CheckSquare className="w-3.5 h-3.5 text-school-blue" />
                       <span>Alle abwählen</span>
@@ -1044,7 +1222,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
                   ) : (
                     <>
                       <Square className="w-3.5 h-3.5 text-slate-400" />
-                      <span>Alle {filteredReports.length} auswählen</span>
+                      <span>Alle {sortedFilteredReports.length} auswählen</span>
                     </>
                   )}
                 </button>
@@ -1069,22 +1247,75 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
           )}
         </div>
 
+        {/* Active Student Filter Banner */}
+        {activeFilteredStudent && (
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50/60 border border-blue-200/80 rounded-xl p-3.5 flex items-center justify-between flex-wrap gap-3 shadow-xs">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-school-blue text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                <User className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-slate-500 font-medium">Schülerscharfe Ansicht:</span>
+                  <span className="font-bold text-sm text-school-darkblue">{activeFilteredStudent.name}</span>
+                  {activeFilteredStudent.code && (
+                    <span className="font-mono text-xs font-bold bg-white text-school-darkblue px-2 py-0.5 rounded border border-blue-300">
+                      {activeFilteredStudent.code}
+                    </span>
+                  )}
+                  {activeFilteredStudent.studentClass && (
+                    <span className="text-xs font-bold text-slate-600 bg-slate-200/70 px-2 py-0.5 rounded">
+                      Kl. {activeFilteredStudent.studentClass}
+                    </span>
+                  )}
+                </div>
+                <span className="text-[11px] text-slate-500 block pt-0.5">
+                  {sortedFilteredReports.length} {sortedFilteredReports.length === 1 ? 'Abgabe' : 'Abgaben'} {sortOption === 'submission-asc' ? 'in chronologischer Reihenfolge (Turnus 1 ➔ Turnus 4)' : ''}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleOpenPortfolio(activeFilteredStudent.name, activeFilteredStudent.code, activeFilteredStudent.studentClass)}
+                className="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
+              >
+                <Award className="w-3.5 h-3.5" />
+                <span>Portfolio öffnen</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setStudentFilter('all')}
+                className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
+              >
+                <X className="w-3.5 h-3.5 text-slate-400" />
+                <span>Alle Schüler anzeigen</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Reports Rendering */}
         {isLoading ? (
           <div className="py-20 text-center space-y-3">
             <Loader2 className="w-8 h-8 animate-spin text-school-blue mx-auto" />
             <p className="text-sm text-slate-500">Berichte werden synchronisiert...</p>
           </div>
-        ) : filteredReports.length === 0 ? (
+        ) : sortedFilteredReports.length === 0 ? (
           <div className="bg-white p-12 rounded-2xl border border-slate-200 text-center space-y-3">
             <GraduationCap className="w-12 h-12 text-slate-300 mx-auto" />
             <h3 className="text-base font-bold text-slate-700">
-              {yearFilter !== 'Alle'
+              {studentFilter !== 'all'
+                ? `Keine Abgaben für diesen Schüler gefunden`
+                : yearFilter !== 'Alle'
                 ? `Keine Schülerberichte im ${yearFilter} gefunden`
                 : 'Keine passenden Berichte gefunden'}
             </h3>
             <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              {yearFilter !== 'Alle'
+              {studentFilter !== 'all'
+                ? 'Prüfe bitte die Filter für Schuljahr, Klasse und Turnus oder setze den Schülerfilter zurück.'
+                : yearFilter !== 'Alle'
                 ? `Sobald Schüler im Schuljahr ${yearFilter} Berichte einreichen, werden sie automatisch hier aufgeführt.`
                 : 'Passe deine Such- oder Filterkriterien an, um Berichte anzuzeigen.'}
             </p>
@@ -1170,7 +1401,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
         ) : (
           /* Flat List */
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredReports.map((rep) => renderReportCard(rep))}
+            {sortedFilteredReports.map((rep) => renderReportCard(rep))}
           </div>
         )}
       </main>
@@ -2474,9 +2705,22 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
 
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <h4 className="font-bold text-slate-900 text-sm sm:text-base">
-                    {rep.studentName || 'Unbenannter Schüler'}
-                  </h4>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const key = getStudentKey(rep.studentName, rep.studentCode);
+                      if (key) {
+                        setStudentFilter(key);
+                        setSortOption('submission-asc');
+                      }
+                    }}
+                    title={`Nur Abgaben von ${rep.studentName || 'diesem Schüler'} anzeigen (schülerscharf)`}
+                    className="font-bold text-slate-900 text-sm sm:text-base hover:text-school-blue hover:underline text-left transition inline-flex items-center gap-1.5 group/student cursor-pointer"
+                  >
+                    <span>{rep.studentName || 'Unbenannter Schüler'}</span>
+                    <Filter className="w-3 h-3 text-slate-400 group-hover/student:text-school-blue opacity-0 group-hover/student:opacity-100 transition" />
+                  </button>
                   {/* Klasse mit direktem Lehrer-Dropdown zur Klassenänderung */}
                   <div
                     className="inline-flex items-center gap-1 bg-slate-100 hover:bg-blue-50 border border-slate-300 hover:border-school-blue rounded px-1.5 py-0.5 transition"
