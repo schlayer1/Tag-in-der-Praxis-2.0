@@ -14,17 +14,51 @@ export function saveGeminiApiKey(key: string): void {
 let cachedWorkingModel: string | null = null;
 let cachedApiVersion: string = 'v1beta';
 
-// Bekannte Flash-Modelle in absteigender Versionsreihenfolge als sichere Fallbacks
+// Bekannte Free-Tier Flash-/Hydrogen-Modelle in bevorzugter Prioritätsreihenfolge als sichere Fallbacks
 const FALLBACK_FLASH_MODELS = [
+  'gemini-4-hydrogen',
+  'gemini-flash-lite-latest',
+  'gemini-3.5-flash-lite',
   'gemini-3.8-flash',
-  'gemini-3.7-flash',
   'gemini-3.6-flash',
-  'gemini-3.5-flash',
   'gemini-flash-latest',
 ];
 
+const EXCLUDED_MODEL_PATTERNS = [
+  'argon',
+  'carbon',
+  'pro',
+  '2.5-',
+  '2.0-',
+  '1.5-',
+  '1.0-',
+  '3.7-flash',
+  '3-flash-preview',
+  '3.1-flash-lite',
+  'omni',
+  'live',
+  'nano-banana',
+  'robotics',
+  'deep-research',
+  'antigravity',
+  'embedding',
+  'aqa',
+  'tts',
+  'image',
+  'native-audio',
+  'transcribe',
+  'computer-use',
+  'veo',
+  'lyria',
+  '8b',
+];
+
 function extractModelVersion(modelName: string): number {
-  const match = modelName.match(/gemini-(\d+(?:\.\d+)?)-flash/);
+  const priorityIndex = FALLBACK_FLASH_MODELS.indexOf(modelName);
+  if (priorityIndex !== -1) {
+    return 100 - priorityIndex;
+  }
+  const match = modelName.match(/gemini-(\d+(?:\.\d+)?)-/);
   return match ? parseFloat(match[1]) : 0;
 }
 
@@ -40,28 +74,18 @@ export async function discoverBestModel(key: string): Promise<{ model: string; v
       const data = await res.json();
       const models = data.models || [];
 
-      // Filter: Nur aktive Modelle, die generateContent unterstützen und weder Embedding noch Audio/Spezialmodelle sind
+      // Filter: Nur aktive Free-Tier Textmodelle, keine eingestellten / Paid-Tier / Spezialmodelle
       const availableFlashModels = models
         .filter((m: any) => {
-          const name = m.name || '';
+          const shortName = (m.name || '').replace(/^models\//, '').toLowerCase();
           const methods = m.supportedGenerationMethods || [];
-          return (
-            methods.includes('generateContent') &&
-            name.includes('flash') &&
-            !name.includes('embedding') &&
-            !name.includes('aqa') &&
-            !name.includes('tts') &&
-            !name.includes('image') &&
-            !name.includes('native-audio') &&
-            !name.includes('transcribe') &&
-            !name.includes('computer-use') &&
-            !name.includes('2.0') &&
-            !name.includes('2.5') &&
-            !name.includes('1.5')
-          );
+          if (!methods.includes('generateContent')) return false;
+          if (!shortName.includes('hydrogen') && !shortName.includes('flash')) return false;
+          if (shortName === 'gemini-3.5-flash') return false;
+          return !EXCLUDED_MODEL_PATTERNS.some((p) => shortName.includes(p));
         })
-        .map((m: any) => m.name.replace(/^models\//, ''))
-        // Automatische Sortierung: Neuere Modellversionen (z. B. 4.0 > 3.8 > 3.7 > 3.6) stehen ganz oben!
+        .map((m: any) => (m.name || '').replace(/^models\//, ''))
+        // Automatische Sortierung: Verifizierte Free-Tier-Kandidaten (Hydrogen zuerst) stehen ganz oben!
         .sort((a: string, b: string) => extractModelVersion(b) - extractModelVersion(a));
 
       if (availableFlashModels.length > 0) {
@@ -77,7 +101,7 @@ export async function discoverBestModel(key: string): Promise<{ model: string; v
   }
 
   // Statischer Fallback-Standard
-  return { model: 'gemini-3.8-flash', version: 'v1beta' };
+  return { model: 'gemini-4-hydrogen', version: 'v1beta' };
 }
 
 // 2. Robuste Ausführung mit automatischem Modell-Wechsel bei Fehlern
