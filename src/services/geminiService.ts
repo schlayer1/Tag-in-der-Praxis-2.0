@@ -1,18 +1,26 @@
 import { PraxisReport, AiFeedback, StudentPortfolioReport } from '../types/report';
 
 export function getGeminiApiKey(): string {
-  const fromEnv = import.meta.env.VITE_GEMINI_API_KEY || '';
-  const fromLocal = localStorage.getItem('gemini_api_key') || '';
-  return fromLocal.trim() || fromEnv.trim();
+  if (typeof window === 'undefined') return '';
+  try {
+    const fromLocal = localStorage.getItem('gemini_api_key') || '';
+    return fromLocal.trim();
+  } catch {
+    return '';
+  }
 }
 
 export function saveGeminiApiKey(key: string): void {
-  localStorage.setItem('gemini_api_key', key.trim());
+  if (typeof window === 'undefined') return;
+  const trimmed = key.trim();
+  if (trimmed) {
+    localStorage.setItem('gemini_api_key', trimmed);
+  } else {
+    localStorage.removeItem('gemini_api_key');
+  }
 }
 
-// Dynamisches Modell-Matching wie in der bewährten Translatorapp
 let cachedWorkingModel: string | null = null;
-let cachedApiVersion: string = 'v1beta';
 
 // Bekannte Free-Tier Flash-/Hydrogen-Modelle in bevorzugter Prioritätsreihenfolge als sichere Fallbacks
 const FALLBACK_FLASH_MODELS = [
@@ -24,99 +32,80 @@ const FALLBACK_FLASH_MODELS = [
   'gemini-flash-latest',
 ];
 
-const EXCLUDED_MODEL_PATTERNS = [
-  'argon',
-  'carbon',
-  'pro',
-  '2.5-',
-  '2.0-',
-  '1.5-',
-  '1.0-',
-  '3.7-flash',
-  '3-flash-preview',
-  '3.1-flash-lite',
-  'omni',
-  'live',
-  'nano-banana',
-  'robotics',
-  'deep-research',
-  'antigravity',
-  'embedding',
-  'aqa',
-  'tts',
-  'image',
-  'native-audio',
-  'transcribe',
-  'computer-use',
-  'veo',
-  'lyria',
-  '8b',
-];
+export async function discoverBestModel(key?: string): Promise<{ model: string; version: string }> {
+  const customKey = (key || getGeminiApiKey()).trim();
+  const res = await fetch('/api/gemini', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      apiKey: customKey || 'serverless-proxy',
+      userPrompt: 'Antworte nur mit {"ok":true}',
+      temperature: 0.1,
+      maxOutputTokens: 64,
+      responseMimeType: 'application/json',
+    }),
+  });
 
-function extractModelVersion(modelName: string): number {
-  const priorityIndex = FALLBACK_FLASH_MODELS.indexOf(modelName);
-  if (priorityIndex !== -1) {
-    return 100 - priorityIndex;
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData?.error || `HTTP ${res.status} vom Gemini-Proxy`);
   }
-  const match = modelName.match(/gemini-(\d+(?:\.\d+)?)-/);
-  return match ? parseFloat(match[1]) : 0;
+
+  const data = await res.json();
+  const activeModel = data?.model || FALLBACK_FLASH_MODELS[0];
+  cachedWorkingModel = activeModel;
+  return { model: activeModel, version: 'v1beta' };
 }
 
-// 1. Automatische & zukunftssichere Modell-Erkennung direkt über die Google API (wie in der Translatorapp)
-export async function discoverBestModel(key: string): Promise<{ model: string; version: string }> {
-  if (cachedWorkingModel) {
-    return { model: cachedWorkingModel, version: cachedApiVersion };
-  }
+// 2. Robuste Ausführung über den sicheren Serverless-Proxy (/api/gemini)
+async function executeGeminiRequest(key: string, promptText: string): Promise<string> {
+  const customKey = (key || getGeminiApiKey()).trim();
 
+  // 1. Primärer Pfad: Sicherer Serverless-Proxy (/api/gemini)
   try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
-    if (res.ok) {
-      const data = await res.json();
-      const models = data.models || [];
+    const proxyRes = await fetch('/api/gemini', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apiKey: customKey || 'serverless-proxy',
+        userPrompt: promptText,
+        model: cachedWorkingModel || 'auto',
+        temperature: 0.3,
+        responseMimeType: 'application/json',
+      }),
+    });
 
-      // Filter: Nur aktive Free-Tier Textmodelle, keine eingestellten / Paid-Tier / Spezialmodelle
-      const availableFlashModels = models
-        .filter((m: any) => {
-          const shortName = (m.name || '').replace(/^models\//, '').toLowerCase();
-          const methods = m.supportedGenerationMethods || [];
-          if (!methods.includes('generateContent')) return false;
-          if (!shortName.includes('hydrogen') && !shortName.includes('flash')) return false;
-          if (shortName === 'gemini-3.5-flash') return false;
-          return !EXCLUDED_MODEL_PATTERNS.some((p) => shortName.includes(p));
-        })
-        .map((m: any) => (m.name || '').replace(/^models\//, ''))
-        // Automatische Sortierung: Verifizierte Free-Tier-Kandidaten (Hydrogen zuerst) stehen ganz oben!
-        .sort((a: string, b: string) => extractModelVersion(b) - extractModelVersion(a));
-
-      if (availableFlashModels.length > 0) {
-        const bestModel = availableFlashModels[0];
-        cachedWorkingModel = bestModel;
-        cachedApiVersion = 'v1beta';
-        console.log(`[Gemini] Zukunftssicheres Modell dynamisch erkannt: ${bestModel}`);
-        return { model: bestModel, version: 'v1beta' };
+    if (proxyRes.ok) {
+      const data = await proxyRes.json();
+      if (data?.text) {
+        cachedWorkingModel = data.model || cachedWorkingModel;
+        return data.text;
       }
     }
-  } catch (e) {
-    console.warn('[Gemini] Live-Modellabfrage fehlgeschlagen, nutze Fallbacks:', e);
+
+    if (proxyRes.status !== 404) {
+      const errData = await proxyRes.json().catch(() => ({}));
+      throw new Error(errData?.error || `HTTP ${proxyRes.status} vom Gemini-Proxy`);
+    }
+  } catch (proxyErr: any) {
+    if (proxyErr?.message && !proxyErr.message.includes('404')) {
+      throw proxyErr;
+    }
   }
 
-  // Statischer Fallback-Standard
-  return { model: 'gemini-4-hydrogen', version: 'v1beta' };
-}
+  // 2. Fallback bei 404 nur mit persönlichem BYOK-Schlüssel
+  if (!customKey) {
+    throw new Error('Der Gemini-Server-Proxy (/api/gemini) ist nicht erreichbar.');
+  }
 
-// 2. Robuste Ausführung mit automatischem Modell-Wechsel bei Fehlern
-async function executeGeminiRequest(key: string, promptText: string): Promise<string> {
-  const { model: primaryModel } = await discoverBestModel(key);
-
-  const candidateModels = Array.from(new Set([
-    primaryModel,
-    ...FALLBACK_FLASH_MODELS,
-  ]));
+  const candidateModels = cachedWorkingModel
+    ? Array.from(new Set([cachedWorkingModel, ...FALLBACK_FLASH_MODELS]))
+    : FALLBACK_FLASH_MODELS;
 
   let lastError: any = null;
 
   for (const model of candidateModels) {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(customKey)}`;
 
     try {
       const response = await fetch(endpoint, {
@@ -143,7 +132,6 @@ async function executeGeminiRequest(key: string, promptText: string): Promise<st
         const candidateText = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (candidateText) {
           cachedWorkingModel = model;
-          cachedApiVersion = 'v1beta';
           return candidateText;
         }
       } else {
@@ -151,7 +139,6 @@ async function executeGeminiRequest(key: string, promptText: string): Promise<st
         const errMsg = errData.error?.message || `HTTP ${response.status}`;
         lastError = new Error(errMsg);
 
-        // Falls ein Modell nicht mehr existiert oder überlastet ist, Cache leeren und nächstes testen
         if (cachedWorkingModel === model) {
           cachedWorkingModel = null;
         }
@@ -213,9 +200,6 @@ Antworte bitte STRENG als valides JSON:
 // 3. Pädagogisches Feedback für den Praktikumstag generieren
 export async function generateFeedbackWithGemini(report: PraxisReport): Promise<AiFeedback> {
   const apiKey = getGeminiApiKey();
-  if (!apiKey) {
-    throw new Error('Kein Gemini API-Schlüssel gefunden. Bitte trage deinen API-Key in den Einstellungen ein.');
-  }
 
   const prompt = buildFeedbackPrompt(report);
 
@@ -322,9 +306,6 @@ export async function generatePortfolioWithGemini(
   reports: PraxisReport[]
 ): Promise<StudentPortfolioReport> {
   const apiKey = getGeminiApiKey();
-  if (!apiKey) {
-    throw new Error('Kein Gemini API-Schlüssel gefunden. Bitte trage deinen API-Key in den Einstellungen ein.');
-  }
 
   if (!reports || reports.length === 0) {
     throw new Error('Keine Berichte für das Portfolio ausgewählt.');

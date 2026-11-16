@@ -442,12 +442,6 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
     setSavedSuccess(false);
     setCopied(false);
 
-    const key = getGeminiApiKey();
-    if (!key) {
-      setIsKeyModalOpen(true);
-      return;
-    }
-
     setIsAiLoading(true);
     try {
       const result = await generateFeedbackWithGemini(rep);
@@ -470,11 +464,6 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
     setCopied(false);
 
     if (forceRegenerate || (!rep.teacherFeedback?.comment && !rep.aiFeedback)) {
-      const key = getGeminiApiKey();
-      if (!key) {
-        // Teacher can still view/write manual feedback or open key modal
-        return;
-      }
       handleGenerateAi(rep);
     }
   };
@@ -645,12 +634,6 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
       return;
     }
 
-    const key = getGeminiApiKey();
-    if (!key) {
-      setIsKeyModalOpen(true);
-      return;
-    }
-
     setIsPortfolioLoading(true);
     setPortfolioError(null);
     try {
@@ -803,12 +786,6 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onClose }) =
 
   // Free-Tier Safe Sequential Bulk AI Feedback (Taktung ca. 4.5s = max 13 RPM)
   const handleStartBulkAi = async () => {
-    const apiKey = getGeminiApiKey();
-    if (!apiKey) {
-      setIsKeyModalOpen(true);
-      return;
-    }
-
     const reportsToProcess = reports.filter(
       (r) => r.id && selectedReportIds.includes(r.id) && !r.teacherFeedback?.comment
     );
