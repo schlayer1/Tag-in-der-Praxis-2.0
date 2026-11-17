@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { PraxisReport, INITIAL_REPORT } from './types/report';
 import { useAuth } from './context/AuthContext';
 import {
@@ -19,10 +19,12 @@ import { StepHighlightExport } from './components/StepHighlightExport';
 import { ResetModal } from './components/ResetModal';
 import { LoginModal } from './components/LoginModal';
 import { StudentReportsModal } from './components/StudentReportsModal';
-import { TeacherDashboard } from './components/TeacherDashboard';
 import { PrintableReport } from './components/PrintableReport';
-import { exportReportToPDF } from './utils/pdfExport';
 import { AnimatePresence } from 'framer-motion';
+
+const TeacherDashboard = lazy(() =>
+  import('./components/TeacherDashboard').then((m) => ({ default: m.TeacherDashboard }))
+);
 
 const STORAGE_KEY = 'praktikum_reflexion_kahla_final';
 
@@ -179,7 +181,8 @@ export function App() {
 
   // Export PDF & Upload to Firestore (with Offline Fallback)
   const handleExportAndSave = async () => {
-    // 1. Generate local PDF download
+    // 1. Generate local PDF download (PDF libraries loaded on demand)
+    const { exportReportToPDF } = await import('./utils/pdfExport');
     await exportReportToPDF(report);
 
     const code = studentCode || report.studentCode;
@@ -382,7 +385,9 @@ export function App() {
       />
 
       {isTeacherDashboardOpen && (
-        <TeacherDashboard onClose={() => setIsTeacherDashboardOpen(false)} />
+        <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs text-white text-sm font-semibold">Lehrer-Dashboard wird geladen…</div>}>
+          <TeacherDashboard onClose={() => setIsTeacherDashboardOpen(false)} />
+        </Suspense>
       )}
     </div>
   );
