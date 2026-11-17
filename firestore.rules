@@ -1,9 +1,422 @@
 rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model (Firebase Project: tag-in-der-praxis-kahla)
+// ===============================================================
+//
+// Note: These school applications use student/teacher access codes
+// in the client without Firebase Authentication (request.auth == null).
+// Rules enforce strict collection scoping, default-deny for all
+// unknown paths, strict schema allowlists on create, legacy-safe
+// diff().affectedKeys() allowlists on update (so pre-existing legacy
+// keys in resource.data never break updates), type/enum/range checks,
+// and anti-spam size limits without breaking partial merge updates
+// or legitimate delete operations.
+//
+// Collection: reports/{reportId}
+//   - id: string (optional, max 128; present on seeded test reports)
+//   - studentUid: string (optional, max 60)
+//   - studentCode: string (required on create, 1..40)
+//   - schoolYear: string (optional, max 30)
+//   - createdAt: string (optional, max 50)
+//   - updatedAt: string (optional, max 50)
+//   - serverTime: timestamp (optional)
+//   - status: string (required on create, 'draft' | 'submitted' | 'reviewed')
+//   - isArchived: bool (optional)
+//   - archivedAt: string | null (optional, max 50)
+//   - studentName: string (required on create, max 150)
+//   - studentClass: string (optional, max 30)
+//   - companyName: string (optional, max 250)
+//   - stage: string (optional, max 50)
+//   - reportDate: string (optional, max 30)
+//   - startTime: string (optional, max 20)
+//   - endTime: string (optional, max 20)
+//   - taskDescription: string (optional, max 10000)
+//   - dailySchedule: string (optional, max 10000)
+//   - funRating, boredRating, learnedRating, overwhelmedRating, careerRating: RatingValue (optional)
+//   - learnedExplanation, overwhelmedExplanation: string (optional, max 5000)
+//   - specialMemory: string (optional, max 5000)
+//   - teacherFeedback: map { comment, reviewedBy?, reviewedAt?, isPublished } (optional)
+//   - aiFeedback: map { generatedAt?, summary?, pedagogicalFeedback?, strengths?, tips? } (optional)
+//
+// Collection: projektkompass_boards/{boardId}
+//   - id: string (optional/required on full board create, max 128)
+//   - boardCode: string (max 40)
+//   - projectName: string (max 300)
+//   - projectType: string | null (optional, 'grad10' | 'regular')
+//   - studentName: string (max 200)
+//   - groupMembers: list (optional, max 30)
+//   - studentClass: string (max 40)
+//   - teacherId: string | null (optional, max 100)
+//   - teacherName: string | null (optional, max 150)
+//   - subject: string | null (optional, max 150)
+//   - schoolYear: string (max 30)
+//   - journalGood, journalBad, journalNext: string (optional, max 10000)
+//   - tasks: list (optional, max 200)
+//   - history: list (optional, max 365)
+//   - milestones: list | null (optional, max 50)
+//   - consultations: list | null (optional, max 100)
+//   - isClassTemplate: bool | null (optional)
+//   - templateGrade: string | null (optional, max 50)
+//   - targetClasses: list | null (optional, max 40)
+//   - templateDescription: string | null (optional, max 2000)
+//   - teacherNotes: string | null (optional, max 10000)
+//   - updatedAt: string (required on create, max 50)
+//   - createdAt: string | null (optional, max 50)
+//   - serverTimestamp: timestamp | null (optional)
+//
+// Collection: tip_companies/{companyId}
+//   - id: string (required on create, immutable, == companyId, 1..128)
+//   - name: string (required on create, 1..200)
+//   - industry: string (required on create, max 150)
+//   - category: string (required on create, 'tech' | 'craft' | 'care' | 'service' | 'industry')
+//   - city: string (required on create, max 120)
+//   - address: string | null (optional, max 250)
+//   - slots: number (required on create, 0..500)
+//   - turnusSlots: map { turnus1?, turnus2?, turnus3?, turnus4? } | null (optional)
+//   - shortDescription: string (required on create, max 3000)
+//   - highlights: list (required on create, max 20)
+//   - pdfUrl: string | null (optional, '' or http(s) URL, max 2000)
+//   - imageUrl: string | null (optional, '' or http(s) URL, max 2000)
+//   - bannerGradient: string | null (optional, max 150)
+//   - active: bool (required on create)
+//
+// Collection: tip_student_preferences/{studentCode}
+//   - studentCode: string (required on create, immutable, == studentCode, 1..40)
+//   - studentName: string (required on create, max 150)
+//   - studentClass: string (required on create, max 30)
+//   - selectedTurnus: string | null (optional, max 50)
+//   - likes: list (required on create, max 200)
+//   - superLikes: list (required on create, max 100)
+//   - dislikes: list (required on create, max 200)
+//   - updatedAt: string (required on create, max 50)
+//
+// ===============================================================
+
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function validDocId(docId) {
+      return docId is string && docId.size() >= 1 && docId.size() <= 128;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function hasOnlyAllowedUpdatedFields(fields) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields);
+    }
+
+    function reqStr(data, field, minLen, maxLen) {
+      return (field in data) &&
+             data[field] is string &&
+             data[field].size() >= minLen &&
+             data[field].size() <= maxLen;
+    }
+
+    function optStr(data, field, maxLen) {
+      return !(field in data) ||
+             data[field] == null ||
+             (data[field] is string && data[field].size() <= maxLen);
+    }
+
+    function optBool(data, field) {
+      return !(field in data) || data[field] == null || data[field] is bool;
+    }
+
+    function optList(data, field, maxSize) {
+      return !(field in data) ||
+             data[field] == null ||
+             (data[field] is list && data[field].size() <= maxSize);
+    }
+
+    function optTimestamp(data, field) {
+      return !(field in data) || data[field] == null || data[field] is timestamp;
+    }
+
+    function optHttpUrlOrEmpty(data, field, maxLen) {
+      return !(field in data) ||
+             data[field] == null ||
+             (data[field] is string &&
+              data[field].size() <= maxLen &&
+              (data[field] == '' ||
+               data[field].matches('^https://.*') ||
+               data[field].matches('^http://.*')));
+    }
+
+    function isValidRating(data, field) {
+      return !(field in data) ||
+             data[field] == null ||
+             data[field] in [
+               'trifft voll zu',
+               'trifft eher zu',
+               'trifft eher nicht zu',
+               'trifft gar nicht zu',
+               ''
+             ];
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function reportAllowedFields() {
+      return [
+        'id', 'studentUid', 'studentCode', 'schoolYear', 'createdAt',
+        'updatedAt', 'serverTime', 'status', 'isArchived', 'archivedAt',
+        'studentName', 'studentClass', 'companyName', 'stage', 'reportDate',
+        'startTime', 'endTime', 'taskDescription', 'dailySchedule',
+        'funRating', 'boredRating', 'learnedRating', 'learnedExplanation',
+        'overwhelmedRating', 'overwhelmedExplanation', 'careerRating',
+        'specialMemory', 'teacherFeedback', 'aiFeedback'
+      ];
+    }
+
+    function isValidTeacherFeedback(tf) {
+      return tf is map &&
+             tf.keys().hasOnly(['comment', 'reviewedBy', 'reviewedAt', 'isPublished']) &&
+             reqStr(tf, 'comment', 0, 5000) &&
+             optStr(tf, 'reviewedBy', 150) &&
+             optStr(tf, 'reviewedAt', 50) &&
+             (tf.isPublished is bool);
+    }
+
+    function isValidAiFeedback(af) {
+      return af is map &&
+             af.keys().hasOnly(['generatedAt', 'summary', 'pedagogicalFeedback', 'strengths', 'tips']) &&
+             optStr(af, 'generatedAt', 50) &&
+             optStr(af, 'summary', 5000) &&
+             optStr(af, 'pedagogicalFeedback', 10000) &&
+             optList(af, 'strengths', 20) &&
+             optList(af, 'tips', 20);
+    }
+
+    function isValidReportFields(data) {
+      return optStr(data, 'id', 128) &&
+             optStr(data, 'studentUid', 60) &&
+             optStr(data, 'studentCode', 40) &&
+             optStr(data, 'schoolYear', 30) &&
+             optStr(data, 'createdAt', 50) &&
+             optStr(data, 'updatedAt', 50) &&
+             optTimestamp(data, 'serverTime') &&
+             (!('status' in data) || data.status == null || data.status in ['draft', 'submitted', 'reviewed']) &&
+             optBool(data, 'isArchived') &&
+             optStr(data, 'archivedAt', 50) &&
+             optStr(data, 'studentName', 150) &&
+             optStr(data, 'studentClass', 30) &&
+             optStr(data, 'companyName', 250) &&
+             optStr(data, 'stage', 50) &&
+             optStr(data, 'reportDate', 30) &&
+             optStr(data, 'startTime', 20) &&
+             optStr(data, 'endTime', 20) &&
+             optStr(data, 'taskDescription', 10000) &&
+             optStr(data, 'dailySchedule', 10000) &&
+             isValidRating(data, 'funRating') &&
+             isValidRating(data, 'boredRating') &&
+             isValidRating(data, 'learnedRating') &&
+             optStr(data, 'learnedExplanation', 5000) &&
+             isValidRating(data, 'overwhelmedRating') &&
+             optStr(data, 'overwhelmedExplanation', 5000) &&
+             isValidRating(data, 'careerRating') &&
+             optStr(data, 'specialMemory', 5000) &&
+             (!('teacherFeedback' in data) || data.teacherFeedback == null || isValidTeacherFeedback(data.teacherFeedback)) &&
+             (!('aiFeedback' in data) || data.aiFeedback == null || isValidAiFeedback(data.aiFeedback));
+    }
+
+    function boardAllowedFields() {
+      return [
+        'id', 'boardCode', 'projectName', 'projectType', 'studentName',
+        'groupMembers', 'studentClass', 'teacherId', 'teacherName',
+        'subject', 'schoolYear', 'journalGood', 'journalBad', 'journalNext',
+        'tasks', 'history', 'milestones', 'consultations',
+        'isClassTemplate', 'templateGrade', 'targetClasses',
+        'templateDescription', 'teacherNotes', 'updatedAt',
+        'createdAt', 'serverTimestamp'
+      ];
+    }
+
+    function isValidBoardFields(data) {
+      return optStr(data, 'id', 128) &&
+             optStr(data, 'boardCode', 40) &&
+             optStr(data, 'projectName', 300) &&
+             (!('projectType' in data) || data.projectType == null || data.projectType in ['grad10', 'regular']) &&
+             optStr(data, 'studentName', 200) &&
+             optList(data, 'groupMembers', 30) &&
+             optStr(data, 'studentClass', 40) &&
+             optStr(data, 'teacherId', 100) &&
+             optStr(data, 'teacherName', 150) &&
+             optStr(data, 'subject', 150) &&
+             optStr(data, 'schoolYear', 30) &&
+             optStr(data, 'journalGood', 10000) &&
+             optStr(data, 'journalBad', 10000) &&
+             optStr(data, 'journalNext', 10000) &&
+             optList(data, 'tasks', 200) &&
+             optList(data, 'history', 365) &&
+             optList(data, 'milestones', 50) &&
+             optList(data, 'consultations', 100) &&
+             optBool(data, 'isClassTemplate') &&
+             optStr(data, 'templateGrade', 50) &&
+             optList(data, 'targetClasses', 40) &&
+             optStr(data, 'templateDescription', 2000) &&
+             optStr(data, 'teacherNotes', 10000) &&
+             optStr(data, 'updatedAt', 50) &&
+             optStr(data, 'createdAt', 50) &&
+             optTimestamp(data, 'serverTimestamp');
+    }
+
+    function companyAllowedFields() {
+      return [
+        'id', 'name', 'industry', 'category', 'city', 'address',
+        'slots', 'turnusSlots', 'shortDescription', 'highlights',
+        'pdfUrl', 'imageUrl', 'bannerGradient', 'active'
+      ];
+    }
+
+    function isValidTurnusSlotValue(ts, field) {
+      return !(field in ts) ||
+             ts[field] == null ||
+             (ts[field] is number && ts[field] >= 0 && ts[field] <= 500);
+    }
+
+    function isValidTurnusSlots(ts) {
+      return ts is map &&
+             ts.keys().hasOnly(['turnus1', 'turnus2', 'turnus3', 'turnus4']) &&
+             isValidTurnusSlotValue(ts, 'turnus1') &&
+             isValidTurnusSlotValue(ts, 'turnus2') &&
+             isValidTurnusSlotValue(ts, 'turnus3') &&
+             isValidTurnusSlotValue(ts, 'turnus4');
+    }
+
+    function isValidCompanyFields(data, companyId) {
+      return (!('id' in data) || (reqStr(data, 'id', 1, 128) && data.id == companyId)) &&
+             optStr(data, 'name', 200) &&
+             optStr(data, 'industry', 150) &&
+             (!('category' in data) || data.category in ['tech', 'craft', 'care', 'service', 'industry']) &&
+             optStr(data, 'city', 120) &&
+             optStr(data, 'address', 250) &&
+             (!('slots' in data) || (data.slots is number && data.slots >= 0 && data.slots <= 500)) &&
+             (!('turnusSlots' in data) || data.turnusSlots == null || isValidTurnusSlots(data.turnusSlots)) &&
+             optStr(data, 'shortDescription', 3000) &&
+             optList(data, 'highlights', 20) &&
+             optHttpUrlOrEmpty(data, 'pdfUrl', 2000) &&
+             optHttpUrlOrEmpty(data, 'imageUrl', 2000) &&
+             optStr(data, 'bannerGradient', 150) &&
+             optBool(data, 'active');
+    }
+
+    function studentPrefAllowedFields() {
+      return [
+        'studentCode', 'studentName', 'studentClass', 'selectedTurnus',
+        'likes', 'superLikes', 'dislikes', 'updatedAt'
+      ];
+    }
+
+    function isValidStudentPreferenceFields(data, studentCode) {
+      return (!('studentCode' in data) || (reqStr(data, 'studentCode', 1, 40) && data.studentCode == studentCode)) &&
+             optStr(data, 'studentName', 150) &&
+             optStr(data, 'studentClass', 30) &&
+             optStr(data, 'selectedTurnus', 50) &&
+             optList(data, 'likes', 200) &&
+             optList(data, 'superLikes', 100) &&
+             optList(data, 'dislikes', 200) &&
+             optStr(data, 'updatedAt', 50);
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    // Praktikumsberichte (Tag in der Praxis)
     match /reports/{reportId} {
-      // Zugriff für Praktikumsberichte (Schülerkürzel & Lehrer-Masterpasswort)
-      allow read, write: if true;
+      allow read: if true;
+      allow create: if validDocId(reportId) &&
+                       request.resource.data.keys().size() <= 29 &&
+                       hasOnlyAllowedFields(reportAllowedFields()) &&
+                       hasRequiredFields(['studentCode', 'studentName', 'status']) &&
+                       reqStr(request.resource.data, 'studentCode', 1, 40) &&
+                       (request.resource.data.status in ['draft', 'submitted', 'reviewed']) &&
+                       isValidReportFields(request.resource.data);
+      allow update: if hasOnlyAllowedUpdatedFields(reportAllowedFields()) &&
+                       (!('studentCode' in request.resource.data.diff(resource.data).affectedKeys()) ||
+                        reqStr(request.resource.data, 'studentCode', 1, 40)) &&
+                       (!('status' in request.resource.data.diff(resource.data).affectedKeys()) ||
+                        request.resource.data.status in ['draft', 'submitted', 'reviewed']) &&
+                       isValidReportFields(request.resource.data);
+      allow delete: if true;
+    }
+
+    // Projektboards & Klassenvorlagen (Projektkompass)
+    match /projektkompass_boards/{boardId} {
+      allow read: if true;
+      allow create: if validDocId(boardId) &&
+                       request.resource.data.keys().size() <= 26 &&
+                       hasOnlyAllowedFields(boardAllowedFields()) &&
+                       reqStr(request.resource.data, 'updatedAt', 1, 50) &&
+                       isValidBoardFields(request.resource.data) &&
+                       (hasRequiredFields(['id', 'boardCode', 'projectName', 'tasks', 'updatedAt']) ||
+                        (boardId == 'pk_demo_10a' && hasRequiredFields(['teacherNotes', 'updatedAt'])));
+      allow update: if hasOnlyAllowedUpdatedFields(boardAllowedFields()) &&
+                       (!('updatedAt' in request.resource.data.diff(resource.data).affectedKeys()) ||
+                        reqStr(request.resource.data, 'updatedAt', 1, 50)) &&
+                       isValidBoardFields(request.resource.data);
+      allow delete: if true;
+    }
+
+    // Betriebe & Stellenangebote (TIP Matching)
+    match /tip_companies/{companyId} {
+      allow read: if true;
+      allow create: if validDocId(companyId) &&
+                       request.resource.data.keys().size() <= 14 &&
+                       hasOnlyAllowedFields(companyAllowedFields()) &&
+                       hasRequiredFields([
+                         'id', 'name', 'industry', 'category', 'city',
+                         'slots', 'shortDescription', 'highlights', 'active'
+                       ]) &&
+                       reqStr(request.resource.data, 'name', 1, 200) &&
+                       (request.resource.data.highlights is list) &&
+                       (request.resource.data.active is bool) &&
+                       isValidCompanyFields(request.resource.data, companyId);
+      allow update: if hasOnlyAllowedUpdatedFields(companyAllowedFields()) &&
+                       (!('id' in resource.data) || request.resource.data.id == resource.data.id) &&
+                       (!('name' in request.resource.data.diff(resource.data).affectedKeys()) ||
+                        reqStr(request.resource.data, 'name', 1, 200)) &&
+                       isValidCompanyFields(request.resource.data, companyId);
+      allow delete: if false;
+    }
+
+    // Schüler-Präferenzen (TIP Matching)
+    match /tip_student_preferences/{studentCode} {
+      allow read: if true;
+      allow create: if validDocId(studentCode) &&
+                       request.resource.data.keys().size() <= 8 &&
+                       hasOnlyAllowedFields(studentPrefAllowedFields()) &&
+                       hasRequiredFields([
+                         'studentCode', 'studentName', 'studentClass',
+                         'likes', 'superLikes', 'dislikes', 'updatedAt'
+                       ]) &&
+                       (request.resource.data.likes is list) &&
+                       (request.resource.data.superLikes is list) &&
+                       (request.resource.data.dislikes is list) &&
+                       reqStr(request.resource.data, 'updatedAt', 1, 50) &&
+                       isValidStudentPreferenceFields(request.resource.data, studentCode);
+      allow update: if hasOnlyAllowedUpdatedFields(studentPrefAllowedFields()) &&
+                       (!('studentCode' in resource.data) || request.resource.data.studentCode == resource.data.studentCode) &&
+                       isValidStudentPreferenceFields(request.resource.data, studentCode);
+      allow delete: if false;
+    }
+
+    // Default Deny: alle übrigen Pfade explizit sperren
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
