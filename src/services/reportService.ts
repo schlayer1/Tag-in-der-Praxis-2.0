@@ -15,6 +15,45 @@ import { db } from '../lib/firebase';
 import { PraxisReport, AiFeedback } from '../types/report';
 
 const REPORTS_COLLECTION = 'reports';
+const REPORTS_CACHE_TTL_MS = 20_000;
+
+let cachedReportsList: PraxisReport[] | null = null;
+let cachedReportsAt = 0;
+let inFlightReportsLoad: Promise<PraxisReport[]> | null = null;
+
+export function invalidateReportsCache(): void {
+  cachedReportsList = null;
+  cachedReportsAt = 0;
+  inFlightReportsLoad = null;
+}
+
+async function loadAllReportsCached(): Promise<PraxisReport[]> {
+  const now = Date.now();
+  if (cachedReportsList && now - cachedReportsAt < REPORTS_CACHE_TTL_MS) {
+    return cachedReportsList;
+  }
+  if (inFlightReportsLoad) {
+    return inFlightReportsLoad;
+  }
+
+  inFlightReportsLoad = (async () => {
+    try {
+      const reportsRef = collection(db, REPORTS_COLLECTION);
+      const snapshot = await getDocs(reportsRef);
+      const list = snapshot.docs.map((d) => ({
+        id: d.id,
+        ...(d.data() as Omit<PraxisReport, 'id'>),
+      }));
+      cachedReportsList = list;
+      cachedReportsAt = Date.now();
+      return list;
+    } finally {
+      inFlightReportsLoad = null;
+    }
+  })();
+
+  return inFlightReportsLoad;
+}
 
 // Liste der wählbaren Schuljahre von SJ 26/27 bis SJ 34/35
 // Automatische Generierung des Schüler-Kürzels aus Vor- und Nachname (wie in der Elternhelferkartei)
@@ -410,6 +449,7 @@ export async function saveReportToFirestore(
   if (report.id && !report.id.startsWith('test_')) {
     const reportDoc = doc(db, REPORTS_COLLECTION, report.id);
     await updateDoc(reportDoc, dataToSave);
+    invalidateReportsCache();
     return report.id;
   } else {
     const newDoc = await addDoc(reportsRef, {
@@ -417,6 +457,7 @@ export async function saveReportToFirestore(
       createdAt: nowISO,
       serverTime: serverTimestamp(),
     });
+    invalidateReportsCache();
     return newDoc.id;
   }
 }
@@ -458,12 +499,7 @@ export async function fetchStudentReports(studentCode: string): Promise<PraxisRe
 // 3. Alle Berichte für die Lehrkraft laden
 export async function fetchAllReportsForTeacher(): Promise<PraxisReport[]> {
   try {
-    const reportsRef = collection(db, REPORTS_COLLECTION);
-    const snapshot = await getDocs(reportsRef);
-    const firestoreReports = snapshot.docs.map((d) => ({
-      id: d.id,
-      ...(d.data() as Omit<PraxisReport, 'id'>),
-    }));
+    const firestoreReports = await loadAllReportsCached();
 
     if (firestoreReports.length === 0) {
       return INITIAL_TEST_REPORTS;
@@ -541,6 +577,7 @@ export async function saveTeacherFeedback(
     },
     { merge: true }
   );
+  invalidateReportsCache();
 }
 
 // 5. KI-Feedback am Bericht hinterlegen
@@ -589,12 +626,14 @@ export async function saveAiFeedback(
     },
     { merge: true }
   );
+  invalidateReportsCache();
 }
 
 // 6. Einzelnen Bericht löschen
 export async function deleteReportDoc(reportId: string): Promise<void> {
   if (reportId.startsWith('test_')) return;
   await deleteDoc(doc(db, REPORTS_COLLECTION, reportId));
+  invalidateReportsCache();
 }
 
 // 7. Einzelnen Bericht archivieren / aus dem Archiv wiederherstellen
@@ -605,6 +644,7 @@ export async function archiveReportDoc(reportId: string, isArchived: boolean = t
     isArchived,
     archivedAt: isArchived ? new Date().toISOString() : null,
   });
+  invalidateReportsCache();
 }
 
 // 7b. Mehrere Berichte im Stapel archivieren / wiederherstellen
@@ -622,6 +662,7 @@ export async function archiveMultipleReportsDoc(reportIds: string[], isArchived:
     });
   });
   await batch.commit();
+  invalidateReportsCache();
 }
 
 // 8. JSON-Export für das Schuljahr-Backup (Herunterladen als Datei)
@@ -669,6 +710,7 @@ export async function importReportsFromJson(importedReports: PraxisReport[]): Pr
     await batch.commit();
   }
 
+  invalidateReportsCache();
   return count;
 }
 
@@ -691,6 +733,7 @@ export async function clearReportsBySchoolYear(reportsToDelete: PraxisReport[]):
     await batch.commit();
   }
 
+  invalidateReportsCache();
   return count;
 }
 
@@ -738,6 +781,7 @@ export async function updateStudentClass(
         await batch.commit();
       }
     }
+    invalidateReportsCache();
   } catch (err) {
     console.warn('Hinweis beim Aktualisieren der Klasse in Firestore:', err);
   }
